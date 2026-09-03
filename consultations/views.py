@@ -6,6 +6,7 @@ from accounts.decorators import patient_required, professional_required
 
 from .forms import IntakeSubmitForm
 from .models import Consultation, IntakeForm
+from .services.presentation import build_status_steps
 from .services.readiness import ReadinessService
 from .services.realtime import RealtimeNotifier
 from .services.state_machine import ConsultationStateMachine, InvalidTransition
@@ -75,6 +76,7 @@ def waiting_room(request, consultation_id):
             "consultation": consultation,
             "form": form,
             "readiness": readiness,
+            "steps": build_status_steps(consultation.status),
         },
     )
 
@@ -111,5 +113,6 @@ def professional_room(request, consultation_id):
             "consultation": consultation,
             "intake": intake,
             "readiness": readiness,
+            "steps": build_status_steps(consultation.status),
         },
     )

@@ -1,0 +1,13 @@
+{% comment %}
+Uso: {% include "consultations/_status_stepper.html" with steps=steps %}
+Requiere que `steps` sea una lista de dicts {code, label, state}, ver
+consultations/services/presentation.py::build_status_steps
+{% endcomment %}
+<div class="stepper" id="status-stepper">
+    {% for step in steps %}
+    <div class="step" data-code="{{ step.code }}" data-state="{{ step.state }}">
+        <span class="step-dot"></span>
+        <span class="step-label">{{ step.label }}</span>
+    </div>
+    {% endfor %}
+</div>

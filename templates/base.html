@@ -4,27 +4,306 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Teleconsulta{% endblock %}</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-        .status-pill { display:inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+        :root {
+            --bg: #F4F2EC;
+            --panel: #FBFAF6;
+            --ink: #1E2A24;
+            --ink-soft: #5B6B62;
+            --border: #DCD7C8;
+            --accent: #2F6F5E;
+            --accent-soft: #E3ECE7;
+            --blocker: #A8432B;
+            --blocker-soft: #F4E2DA;
+            --warning: #A9791F;
+            --warning-soft: #F3E9D2;
+            --font-display: 'Source Serif 4', Georgia, serif;
+            --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--ink);
+            line-height: 1.5;
+        }
+
+        h1, h2, .display {
+            font-family: var(--font-display);
+            font-weight: 600;
+            color: var(--ink);
+            margin: 0;
+        }
+
+        h1 { font-size: 1.6rem; }
+        h2 { font-size: 1.05rem; }
+
+        a { color: var(--accent); }
+
+        .nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.1rem 1.75rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--panel);
+        }
+
+        .nav-brand {
+            font-family: var(--font-display);
+            font-size: 1.15rem;
+            font-style: italic;
+            color: var(--ink);
+            text-decoration: none;
+        }
+
+        .nav-meta {
+            font-size: 0.85rem;
+            color: var(--ink-soft);
+            display: flex;
+            align-items: center;
+            gap: 1.1rem;
+        }
+
+        .nav-meta a { color: var(--accent); text-decoration: none; }
+        .nav-meta a:hover { text-decoration: underline; }
+
+        main {
+            max-width: 620px;
+            margin: 0 auto;
+            padding: 2.5rem 1.5rem 4rem;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 1rem;
+            margin-bottom: 1.75rem;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 1.5rem;
+        }
+
+        .panel + .panel { margin-top: 1.25rem; }
+
+        .field { margin-bottom: 1.1rem; }
+
+        .field label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--ink-soft);
+            margin-bottom: 0.35rem;
+        }
+
+        .field input[type="text"],
+        .field input[type="date"],
+        .field input[type="datetime-local"],
+        .field textarea,
+        .field select,
+        input[type="text"],
+        input[type="password"],
+        textarea {
+            width: 100%;
+            font-family: var(--font-body);
+            font-size: 0.95rem;
+            padding: 0.55rem 0.65rem;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            background: #fff;
+            color: var(--ink);
+        }
+
+        .field input:focus, .field textarea:focus, input:focus, textarea:focus {
+            outline: 2px solid var(--accent);
+            outline-offset: 1px;
+        }
+
+        .checkbox-row { display: flex; align-items: center; gap: 0.5rem; }
+        .checkbox-row input { margin: 0; }
+        .checkbox-row label { margin: 0; color: var(--ink); font-size: 0.92rem; }
+
+        .btn {
+            display: inline-block;
+            font-family: var(--font-body);
+            font-size: 0.92rem;
+            font-weight: 500;
+            padding: 0.6rem 1.2rem;
+            border-radius: 3px;
+            border: 1px solid transparent;
+            cursor: pointer;
+        }
+
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: #275b4d; }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--ink);
+            border-color: var(--border);
+        }
+        .btn-secondary:hover:not(:disabled) { border-color: var(--ink-soft); }
+
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        .flash {
+            padding: 0.7rem 1rem;
+            border-radius: 3px;
+            font-size: 0.9rem;
+            margin-bottom: 1.25rem;
+            border-left: 3px solid;
+        }
+        .flash-success { background: var(--accent-soft); border-color: var(--accent); color: #1c4638; }
+        .flash-error { background: var(--blocker-soft); border-color: var(--blocker); color: var(--blocker); }
+
+        /* --- Stepper de estado --- */
+        .stepper {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+        .stepper::before {
+            content: "";
+            position: absolute;
+            top: 6px;
+            left: 6%;
+            right: 6%;
+            height: 1px;
+            background: var(--border);
+        }
+        .step {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.4rem;
+            flex: 1;
+        }
+        .step-dot {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: var(--bg);
+            border: 2px solid var(--border);
+            z-index: 1;
+        }
+        .step-label {
+            font-size: 0.72rem;
+            color: var(--ink-soft);
+            text-align: center;
+            max-width: 5.5rem;
+        }
+        .step[data-state="done"] .step-dot { background: var(--accent); border-color: var(--accent); }
+        .step[data-state="current"] .step-dot {
+            background: var(--panel);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-soft);
+        }
+        .step[data-state="current"] .step-label { color: var(--ink); font-weight: 600; }
+
+        /* --- Alertas de readiness --- */
+        .alert-list { margin: 0; padding: 0; list-style: none; }
+        .alert-item {
+            padding: 0.5rem 0.75rem;
+            border-radius: 3px;
+            font-size: 0.87rem;
+            margin-bottom: 0.4rem;
+            border-left: 3px solid;
+        }
+        .alert-item.blocker { background: var(--blocker-soft); border-color: var(--blocker); color: var(--blocker); }
+        .alert-item.warning { background: var(--warning-soft); border-color: var(--warning); color: var(--warning); }
+        .readiness-ok { font-size: 0.88rem; color: var(--accent); }
+
+        .banner {
+            padding: 0.6rem 0.9rem;
+            border-radius: 3px;
+            font-size: 0.87rem;
+            background: var(--warning-soft);
+            color: var(--warning);
+            margin-bottom: 1.25rem;
+            border-left: 3px solid var(--warning);
+        }
+        .hidden { display: none; }
+
+        .list-item {
+            display: block;
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            background: var(--panel);
+            text-decoration: none;
+            color: inherit;
+            margin-bottom: 0.75rem;
+        }
+        .list-item:hover { border-color: var(--accent); }
+        .list-item-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+        .list-item-name { font-weight: 500; }
+        .list-item-meta { font-size: 0.82rem; color: var(--ink-soft); margin-top: 0.15rem; }
+
+        .badge {
+            font-size: 0.78rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            white-space: nowrap;
+        }
+
+        .empty-state { color: var(--ink-soft); font-size: 0.92rem; }
+        dl.intake-data div { padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
+        dl.intake-data div:last-child { border-bottom: none; }
+        dl.intake-data dt { color: var(--ink-soft); display: inline; }
+        dl.intake-data dd { display: inline; margin: 0; }
+
+
+        .link-button {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 0.35rem 0.85rem;
+            font: inherit;
+            font-size: 0.82rem;
+            color: var(--ink-soft);
+            cursor: pointer;
+            transition: border-color 0.15s ease, color 0.15s ease;
+        }
+
+        .link-button:hover {
+            border-color: var(--blocker);
+            color: var(--blocker);
+        }
+        
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-    <nav class="bg-white border-b px-6 py-3 flex justify-between items-center">
-        <a href="{% url 'consultations:home' %}" class="font-bold text-lg text-blue-700">Teleconsulta</a>
+<body>
+    <nav class="nav">
+        <a href="{% url 'consultations:home' %}" class="nav-brand">Teleconsulta</a>
         {% if user.is_authenticated %}
-        <div class="flex items-center gap-4 text-sm text-gray-600">
+        <div class="nav-meta">
             <span>{{ user.username }}{% if user.profile %} · {{ user.profile.get_role_display }}{% endif %}</span>
-            <a href="{% url 'logout' %}" class="text-blue-600 hover:underline">Cerrar sesión</a>
+            <form method="post" action="{% url 'logout' %}" style="margin:0; display:inline;">
+                {% csrf_token %}
+            <button type="submit" class="link-button">Cerrar sesión</button>
+</form>
         </div>
         {% endif %}
     </nav>
 
-    <main class="max-w-3xl mx-auto px-4 py-8">
+    <main>
         {% if messages %}
             {% for message in messages %}
-                <div class="mb-4 px-4 py-2 rounded text-sm {% if message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %}">
+                <div class="flash {% if message.tags == 'error' %}flash-error{% else %}flash-success{% endif %}">
                     {{ message }}
                 </div>
             {% endfor %}

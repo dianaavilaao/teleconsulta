@@ -9,6 +9,7 @@ levantar un channel layer).
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
+from consultations.services.presentation import build_status_steps
 from consultations.services.readiness import ReadinessService
 
 
@@ -41,4 +42,5 @@ class RealtimeNotifier:
             "patient_joined": consultation.patient_joined_at is not None,
             "professional_joined": consultation.professional_joined_at is not None,
             "readiness": readiness,
+            "steps": build_status_steps(consultation.status),
         }

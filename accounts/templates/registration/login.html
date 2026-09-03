@@ -1,27 +1,31 @@
 {% extends "base.html" %}
 {% block title %}Ingresar - Teleconsulta{% endblock %}
 {% block content %}
-<div class="max-w-sm mx-auto bg-white rounded-lg shadow p-6 mt-12">
-    <h1 class="text-xl font-semibold mb-4">Iniciar sesión</h1>
-    <form method="post">
-        {% csrf_token %}
-        {% if form.errors %}
-            <p class="text-red-600 text-sm mb-3">Usuario o contraseña incorrectos.</p>
-        {% endif %}
-        <div class="mb-3">
-            <label class="block text-sm text-gray-600 mb-1">Usuario</label>
-            <input type="text" name="username" class="w-full border rounded px-3 py-2" required autofocus>
-        </div>
-        <div class="mb-4">
-            <label class="block text-sm text-gray-600 mb-1">Contraseña</label>
-            <input type="password" name="password" class="w-full border rounded px-3 py-2" required>
-        </div>
-        <button type="submit" class="w-full bg-blue-600 text-white rounded py-2 font-medium hover:bg-blue-700">
-            Entrar
-        </button>
-    </form>
-    <p class="text-xs text-gray-400 mt-4">
-        Usuarios de demo: ver README (admin / paciente1 / profesional1), contraseña <code>demo1234</code>.
+<div style="max-width: 360px; margin: 3rem auto 0;">
+    <h1 style="margin-bottom: 0.3rem;">Ingresar</h1>
+    <p style="color: var(--ink-soft); font-size: 0.9rem; margin-bottom: 1.5rem;">
+        Accedé a tu sala de espera o a tus consultas asignadas.
+    </p>
+    <div class="panel">
+        <form method="post">
+            {% csrf_token %}
+            {% if form.errors %}
+                <div class="flash flash-error">Usuario o contraseña incorrectos.</div>
+            {% endif %}
+            <div class="field">
+                <label for="id_username">Usuario</label>
+                <input type="text" name="username" id="id_username" required autofocus>
+            </div>
+            <div class="field">
+                <label for="id_password">Contraseña</label>
+                <input type="password" name="password" id="id_password" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">Entrar</button>
+        </form>
+    </div>
+    <p style="font-size: 0.78rem; color: var(--ink-soft); margin-top: 1rem;">
+        Usuarios de demo: <code>admin</code>, <code>paciente1</code>, <code>profesional1</code>
+        — contraseña <code>demo1234</code>.
     </p>
 </div>
 {% endblock %}

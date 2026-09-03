@@ -1,73 +1,117 @@
 {% extends "base.html" %}
 {% block title %}Consulta con {{ consultation.patient }}{% endblock %}
 {% block content %}
-<div class="flex justify-between items-start mb-6">
-    <h1 class="text-xl font-semibold">Paciente: {{ consultation.patient.get_full_name|default:consultation.patient.username }}</h1>
-    <span id="status-pill" class="status-pill bg-blue-100 text-blue-700">{{ consultation.get_status_display }}</span>
-</div>
+<h1 style="margin-bottom: 1.5rem;">Paciente: {{ consultation.patient.get_full_name|default:consultation.patient.username }}</h1>
 
-<div id="patient-banner" class="mb-4 text-sm px-3 py-2 rounded bg-amber-50 text-amber-700 {% if consultation.patient_joined_at %}hidden{% endif %}">
+{% include "consultations/_status_stepper.html" with steps=steps %}
+
+<div id="patient-banner" class="banner {% if consultation.patient_joined_at %}hidden{% endif %}">
     El paciente todavía no ha ingresado a la sala de espera.
 </div>
 
-<div class="bg-white rounded-lg shadow p-6 mb-6">
-    <h2 class="font-medium mb-3">Información pre-consulta</h2>
+<div id="video-panel" class="panel {% if consultation.status != 'in_progress' %}hidden{% endif %}" style="padding: 0; overflow: hidden;">
+    <div id="meet-container" style="width: 100%; height: 520px;"></div>
+</div>
+
+<div class="panel">
+    <h2 style="margin-bottom: 0.75rem;">Información pre-consulta</h2>
     {% if intake %}
-    <dl id="intake-data" class="text-sm space-y-2">
-        <div><dt class="text-gray-500 inline">Motivo:</dt> <dd class="inline">{{ intake.reason|default:"—" }}</dd></div>
-        <div><dt class="text-gray-500 inline">Edad:</dt> <dd class="inline">{{ intake.age|default:"—" }}</dd></div>
-        <div><dt class="text-gray-500 inline">Medicamentos actuales:</dt> <dd class="inline">{{ intake.current_medications|default:"—" }}</dd></div>
-        <div><dt class="text-gray-500 inline">Alergias:</dt> <dd class="inline">{{ intake.allergies|default:"—" }}</dd></div>
-        <div><dt class="text-gray-500 inline">Consentimiento:</dt> <dd class="inline">{% if intake.consent_given %}Sí{% else %}No{% endif %}</dd></div>
+    <dl class="intake-data" id="intake-data">
+        <div><dt>Motivo:</dt> <dd>{{ intake.reason|default:"—" }}</dd></div>
+        <div><dt>Edad:</dt> <dd>{{ intake.age|default:"—" }}</dd></div>
+        <div><dt>Medicamentos actuales:</dt> <dd>{{ intake.current_medications|default:"—" }}</dd></div>
+        <div><dt>Alergias:</dt> <dd>{{ intake.allergies|default:"—" }}</dd></div>
+        <div><dt>Consentimiento:</dt> <dd>{% if intake.consent_given %}Sí{% else %}No{% endif %}</dd></div>
     </dl>
 
-    <div class="mt-4">
-        <ul id="blockers-list" class="text-sm text-red-600 list-disc pl-5 mb-1">
-            {% for b in readiness.blockers %}<li>{{ b }}</li>{% endfor %}
-        </ul>
-        <ul id="warnings-list" class="text-sm text-amber-600 list-disc pl-5">
-            {% for w in readiness.warnings %}<li>{{ w }}</li>{% endfor %}
-        </ul>
-    </div>
+    <ul id="alert-list" class="alert-list" style="margin-top: 1rem;">
+        {% for b in readiness.blockers %}<li class="alert-item blocker">{{ b }}</li>{% endfor %}
+        {% for w in readiness.warnings %}<li class="alert-item warning">{{ w }}</li>{% endfor %}
+    </ul>
     {% else %}
-    <p class="text-gray-500 text-sm">El paciente aún no completó ningún dato.</p>
+    <p class="empty-state">El paciente aún no completó ningún dato.</p>
     {% endif %}
 </div>
 
-<form method="post">
+<form method="post" style="margin-top: 1.25rem; display: flex; gap: 0.75rem;">
     {% csrf_token %}
-    <button type="submit" name="action" value="start" id="start-btn"
-        class="bg-green-600 text-white rounded px-4 py-2 font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
+    <button type="submit" name="action" value="start" id="start-btn" class="btn btn-primary"
         {% if consultation.status != 'both_present' %}disabled{% endif %}>
         Iniciar consulta
     </button>
-    <button type="submit" name="action" value="complete" id="complete-btn"
-        class="bg-gray-600 text-white rounded px-4 py-2 font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+    <button type="submit" name="action" value="complete" id="complete-btn" class="btn btn-secondary"
         {% if consultation.status != 'in_progress' %}disabled{% endif %}>
         Finalizar consulta
     </button>
 </form>
 
+<script src="https://meet.ffmuc.net/external_api.js"></script>
 <script>
 (function () {
     const scheme = window.location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(`${scheme}://${window.location.host}/ws/consultations/{{ consultation.id }}/`);
 
+    // meet.jit.si exige login como moderador para salas nuevas, lo que en un
+    // iframe embebido suele quedar en pantalla negra (cookies de terceros).
+    // meet.ffmuc.net es una instancia pública comunitaria sin ese requisito.
+    const jitsiDomain = "meet.ffmuc.net";
+    const roomName = "teleconsulta-{{ consultation.id }}-{{ consultation.created_at|date:'YmdHis' }}";
+    let jitsiApi = null;
+
+    function startVideoCall() {
+        if (jitsiApi) return;
+        document.getElementById("video-panel").classList.remove("hidden");
+        jitsiApi = new JitsiMeetExternalAPI(jitsiDomain, {
+            roomName: roomName,
+            parentNode: document.querySelector("#meet-container"),
+            width: "100%",
+            height: "100%",
+            lang: "es",
+            userInfo: {
+                displayName: "{{ request.user.get_full_name|default:request.user.username|escapejs }}",
+            },
+        });
+    }
+
+    function endVideoCall() {
+        if (!jitsiApi) return;
+        jitsiApi.dispose();
+        jitsiApi = null;
+        document.getElementById("video-panel").classList.add("hidden");
+    }
+
+    if ("{{ consultation.status }}" === "in_progress") startVideoCall();
+
+    function updateStepper(steps) {
+        steps.forEach(function (step) {
+            const el = document.querySelector(`#status-stepper .step[data-code="${step.code}"]`);
+            if (el) el.setAttribute("data-state", step.state);
+        });
+    }
+
     socket.onmessage = function (event) {
         const data = JSON.parse(event.data);
-        document.getElementById("status-pill").textContent = data.status_display;
+
         document.getElementById("patient-banner").classList.toggle("hidden", data.patient_joined);
+
+        if (data.steps) updateStepper(data.steps);
 
         const startBtn = document.getElementById("start-btn");
         const completeBtn = document.getElementById("complete-btn");
         startBtn.disabled = data.status !== "both_present";
         completeBtn.disabled = data.status !== "in_progress";
 
+        if (data.status === "in_progress") {
+            startVideoCall();
+        } else if (data.status === "completed") {
+            endVideoCall();
+        }
+
         if (data.readiness) {
-            document.getElementById("blockers-list").innerHTML =
-                data.readiness.blockers.map(b => `<li>${b}</li>`).join("");
-            document.getElementById("warnings-list").innerHTML =
-                data.readiness.warnings.map(w => `<li>${w}</li>`).join("");
+            document.getElementById("alert-list").innerHTML =
+                data.readiness.blockers.map(b => `<li class="alert-item blocker">${b}</li>`)
+                    .concat(data.readiness.warnings.map(w => `<li class="alert-item warning">${w}</li>`))
+                    .join("");
         }
     };
 })();

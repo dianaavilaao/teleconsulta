@@ -1,65 +1,113 @@
 {% extends "base.html" %}
 {% block title %}Sala de espera{% endblock %}
 {% block content %}
-<div class="flex justify-between items-start mb-6">
-    <h1 class="text-xl font-semibold">Sala de espera</h1>
-    <span id="status-pill" class="status-pill bg-blue-100 text-blue-700" data-status="{{ consultation.status }}">
-        {{ consultation.get_status_display }}
-    </span>
-</div>
+<h1 style="margin-bottom: 1.5rem;">Sala de espera</h1>
 
-<div id="professional-banner" class="mb-4 text-sm px-3 py-2 rounded bg-amber-50 text-amber-700 {% if not consultation.professional_joined_at %}hidden{% endif %}">
+{% include "consultations/_status_stepper.html" with steps=steps %}
+
+<div id="professional-banner" class="banner {% if not consultation.professional_joined_at %}hidden{% endif %}">
     El profesional ya se encuentra en la sala.
 </div>
 
-<div id="readiness-box" class="mb-6 rounded-lg border p-4 bg-white">
-    <h2 class="font-medium mb-2 text-sm text-gray-700">Estado de tu información</h2>
-    <ul id="blockers-list" class="text-sm text-red-600 list-disc pl-5 mb-1">
-        {% for b in readiness.blockers %}<li>{{ b }}</li>{% endfor %}
-    </ul>
-    <ul id="warnings-list" class="text-sm text-amber-600 list-disc pl-5">
-        {% for w in readiness.warnings %}<li>{{ w }}</li>{% endfor %}
-    </ul>
-    {% if readiness.can_start and not readiness.blockers and not readiness.warnings %}
-    <p class="text-sm text-green-600">Toda tu información está completa.</p>
-    {% endif %}
+<div id="video-panel" class="panel {% if consultation.status != 'in_progress' %}hidden{% endif %}" style="padding: 0; overflow: hidden;">
+    <div id="meet-container" style="width: 100%; height: 520px;"></div>
 </div>
 
-<form method="post" class="bg-white rounded-lg shadow p-6 space-y-4">
-    {% csrf_token %}
-    {% for field in form %}
-    <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</label>
-        {{ field }}
-        {% if field.errors %}<p class="text-red-600 text-xs mt-1">{{ field.errors|striptags }}</p>{% endif %}
-    </div>
-    {% endfor %}
-    <button type="submit" class="bg-blue-600 text-white rounded px-4 py-2 font-medium hover:bg-blue-700">
-        Guardar información
-    </button>
-</form>
+<div class="panel">
+    <h2 style="margin-bottom: 0.75rem;">Estado de tu información</h2>
+    <ul id="alert-list" class="alert-list">
+        {% for b in readiness.blockers %}<li class="alert-item blocker">{{ b }}</li>{% endfor %}
+        {% for w in readiness.warnings %}<li class="alert-item warning">{{ w }}</li>{% endfor %}
+    </ul>
+    <p id="readiness-ok" class="readiness-ok {% if readiness.blockers or readiness.warnings %}hidden{% endif %}">
+        Toda tu información está completa.
+    </p>
+</div>
 
+<div class="panel">
+    <form method="post">
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="field">
+            {% if field.name == "consent_given" %}
+            <div class="checkbox-row">
+                {{ field }}
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            </div>
+            {% else %}
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% endif %}
+            {% if field.errors %}<p style="color: var(--blocker); font-size: 0.8rem; margin-top: 0.25rem;">{{ field.errors|striptags }}</p>{% endif %}
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">Guardar información</button>
+    </form>
+</div>
+
+<script src="https://meet.ffmuc.net/external_api.js"></script>
 <script>
 (function () {
     const scheme = window.location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(`${scheme}://${window.location.host}/ws/consultations/{{ consultation.id }}/`);
 
+    // meet.jit.si exige login como moderador para salas nuevas, lo que en un
+    // iframe embebido suele quedar en pantalla negra (cookies de terceros).
+    // meet.ffmuc.net es una instancia pública comunitaria sin ese requisito.
+    const jitsiDomain = "meet.ffmuc.net";
+    const roomName = "teleconsulta-{{ consultation.id }}-{{ consultation.created_at|date:'YmdHis' }}";
+    let jitsiApi = null;
+
+    function startVideoCall() {
+        if (jitsiApi) return;
+        document.getElementById("video-panel").classList.remove("hidden");
+        jitsiApi = new JitsiMeetExternalAPI(jitsiDomain, {
+            roomName: roomName,
+            parentNode: document.querySelector("#meet-container"),
+            width: "100%",
+            height: "100%",
+            lang: "es",
+            userInfo: {
+                displayName: "{{ request.user.get_full_name|default:request.user.username|escapejs }}",
+            },
+        });
+    }
+
+    function endVideoCall() {
+        if (!jitsiApi) return;
+        jitsiApi.dispose();
+        jitsiApi = null;
+        document.getElementById("video-panel").classList.add("hidden");
+    }
+
+    if ("{{ consultation.status }}" === "in_progress") startVideoCall();
+
+    function updateStepper(steps) {
+        steps.forEach(function (step) {
+            const el = document.querySelector(`#status-stepper .step[data-code="${step.code}"]`);
+            if (el) el.setAttribute("data-state", step.state);
+        });
+    }
+
     socket.onmessage = function (event) {
         const data = JSON.parse(event.data);
-        document.getElementById("status-pill").textContent = data.status_display;
 
-        const banner = document.getElementById("professional-banner");
-        banner.classList.toggle("hidden", !data.professional_joined);
+        document.getElementById("professional-banner").classList.toggle("hidden", !data.professional_joined);
 
-        if (data.readiness) {
-            const blockersEl = document.getElementById("blockers-list");
-            const warningsEl = document.getElementById("warnings-list");
-            blockersEl.innerHTML = data.readiness.blockers.map(b => `<li>${b}</li>`).join("");
-            warningsEl.innerHTML = data.readiness.warnings.map(w => `<li>${w}</li>`).join("");
-        }
+        if (data.steps) updateStepper(data.steps);
 
         if (data.status === "in_progress") {
-            // En un entorno real acá se redirigiría a la vista de videollamada (Bonus 4).
+            startVideoCall();
+        } else if (data.status === "completed") {
+            endVideoCall();
+        }
+
+        if (data.readiness) {
+            const list = document.getElementById("alert-list");
+            const items = data.readiness.blockers.map(b => `<li class="alert-item blocker">${b}</li>`)
+                .concat(data.readiness.warnings.map(w => `<li class="alert-item warning">${w}</li>`));
+            list.innerHTML = items.join("");
+            document.getElementById("readiness-ok").classList.toggle("hidden", items.length > 0);
         }
     };
 })();
