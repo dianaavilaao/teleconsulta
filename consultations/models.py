@@ -1,0 +1,98 @@
+from django.conf import settings
+from django.db import models
+from django.utils import timezone
+
+
+class Consultation(models.Model):
+    """
+    Entidad central del dominio. Representa una teleconsulta desde que
+    el admin la crea hasta que se completa.
+
+    Importante: nada fuera de `services/state_machine.py` deberia
+    escribir directamente en `status`. Las vistas llaman al servicio,
+    el servicio valida la transicion y guarda el modelo.
+    """
+
+    class Status(models.TextChoices):
+        SCHEDULED = "scheduled", "Agendada"
+        WAITING_INTAKE = "waiting_intake", "Esperando intake"
+        READY = "ready", "Lista"
+        BOTH_PRESENT = "both_present", "Ambos presentes"
+        IN_PROGRESS = "in_progress", "En curso"
+        COMPLETED = "completed", "Completada"
+
+    patient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="consultations_as_patient",
+    )
+    professional = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="consultations_as_professional",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="consultations_created",
+        help_text="Admin que creo la teleconsulta.",
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.SCHEDULED
+    )
+    scheduled_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="Fecha/hora planificada de la teleconsulta.",
+    )
+    patient_joined_at = models.DateTimeField(null=True, blank=True)
+    professional_joined_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Consulta #{self.pk} - {self.patient} / {self.professional} ({self.status})"
+
+    @property
+    def is_finished(self) -> bool:
+        return self.status == self.Status.COMPLETED
+
+
+class IntakeForm(models.Model):
+    """
+    Formulario pre-consulta que completa el paciente en la sala de espera.
+    Uno a uno con Consultation: cada consulta tiene un unico intake que
+    se va editando hasta que el paciente confirma / hasta que empieza la consulta.
+    """
+
+    consultation = models.OneToOneField(
+        Consultation, on_delete=models.CASCADE, related_name="intake"
+    )
+    reason = models.TextField("Motivo de consulta", blank=True)
+    birth_date = models.DateField("Fecha de nacimiento", null=True, blank=True)
+    consent_given = models.BooleanField("Consentimiento informado", default=False)
+    current_medications = models.TextField("Medicamentos actuales", blank=True)
+    allergies = models.TextField("Alergias", blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Intake"
+        verbose_name_plural = "Intakes"
+
+    def __str__(self):
+        return f"Intake de consulta #{self.consultation_id}"
+
+    @property
+    def age(self):
+        if not self.birth_date:
+            return None
+        today = timezone.now().date()
+        years = today.year - self.birth_date.year
+        if (today.month, today.day) < (self.birth_date.month, self.birth_date.day):
+            years -= 1
+        return years

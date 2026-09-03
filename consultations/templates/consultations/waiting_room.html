@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Sala de espera{% endblock %}
+{% block content %}
+<div class="flex justify-between items-start mb-6">
+    <h1 class="text-xl font-semibold">Sala de espera</h1>
+    <span id="status-pill" class="status-pill bg-blue-100 text-blue-700" data-status="{{ consultation.status }}">
+        {{ consultation.get_status_display }}
+    </span>
+</div>
+
+<div id="professional-banner" class="mb-4 text-sm px-3 py-2 rounded bg-amber-50 text-amber-700 {% if not consultation.professional_joined_at %}hidden{% endif %}">
+    El profesional ya se encuentra en la sala.
+</div>
+
+<div id="readiness-box" class="mb-6 rounded-lg border p-4 bg-white">
+    <h2 class="font-medium mb-2 text-sm text-gray-700">Estado de tu información</h2>
+    <ul id="blockers-list" class="text-sm text-red-600 list-disc pl-5 mb-1">
+        {% for b in readiness.blockers %}<li>{{ b }}</li>{% endfor %}
+    </ul>
+    <ul id="warnings-list" class="text-sm text-amber-600 list-disc pl-5">
+        {% for w in readiness.warnings %}<li>{{ w }}</li>{% endfor %}
+    </ul>
+    {% if readiness.can_start and not readiness.blockers and not readiness.warnings %}
+    <p class="text-sm text-green-600">Toda tu información está completa.</p>
+    {% endif %}
+</div>
+
+<form method="post" class="bg-white rounded-lg shadow p-6 space-y-4">
+    {% csrf_token %}
+    {% for field in form %}
+    <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</label>
+        {{ field }}
+        {% if field.errors %}<p class="text-red-600 text-xs mt-1">{{ field.errors|striptags }}</p>{% endif %}
+    </div>
+    {% endfor %}
+    <button type="submit" class="bg-blue-600 text-white rounded px-4 py-2 font-medium hover:bg-blue-700">
+        Guardar información
+    </button>
+</form>
+
+<script>
+(function () {
+    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const socket = new WebSocket(`${scheme}://${window.location.host}/ws/consultations/{{ consultation.id }}/`);
+
+    socket.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        document.getElementById("status-pill").textContent = data.status_display;
+
+        const banner = document.getElementById("professional-banner");
+        banner.classList.toggle("hidden", !data.professional_joined);
+
+        if (data.readiness) {
+            const blockersEl = document.getElementById("blockers-list");
+            const warningsEl = document.getElementById("warnings-list");
+            blockersEl.innerHTML = data.readiness.blockers.map(b => `<li>${b}</li>`).join("");
+            warningsEl.innerHTML = data.readiness.warnings.map(w => `<li>${w}</li>`).join("");
+        }
+
+        if (data.status === "in_progress") {
+            // En un entorno real acá se redirigiría a la vista de videollamada (Bonus 4).
+        }
+    };
+})();
+</script>
+{% endblock %}

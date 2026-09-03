@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Mis consultas asignadas{% endblock %}
+{% block content %}
+<h1 class="text-xl font-semibold mb-4">Mis consultas asignadas</h1>
+{% if consultations %}
+<div class="space-y-3">
+    {% for c in consultations %}
+    <a href="{% url 'consultations:professional_room' c.id %}"
+       class="block bg-white rounded-lg shadow p-4 hover:shadow-md transition">
+        <div class="flex justify-between items-center">
+            <div>
+                <p class="font-medium">Paciente: {{ c.patient.get_full_name|default:c.patient.username }}</p>
+                <p class="text-sm text-gray-500">{{ c.scheduled_at }}</p>
+            </div>
+            <span class="status-pill bg-blue-100 text-blue-700">{{ c.get_status_display }}</span>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-gray-500">No tenés consultas asignadas todavía.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Consulta con {{ consultation.patient }}{% endblock %}
+{% block content %}
+<div class="flex justify-between items-start mb-6">
+    <h1 class="text-xl font-semibold">Paciente: {{ consultation.patient.get_full_name|default:consultation.patient.username }}</h1>
+    <span id="status-pill" class="status-pill bg-blue-100 text-blue-700">{{ consultation.get_status_display }}</span>
+</div>
+
+<div id="patient-banner" class="mb-4 text-sm px-3 py-2 rounded bg-amber-50 text-amber-700 {% if consultation.patient_joined_at %}hidden{% endif %}">
+    El paciente todavía no ha ingresado a la sala de espera.
+</div>
+
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <h2 class="font-medium mb-3">Información pre-consulta</h2>
+    {% if intake %}
+    <dl id="intake-data" class="text-sm space-y-2">
+        <div><dt class="text-gray-500 inline">Motivo:</dt> <dd class="inline">{{ intake.reason|default:"—" }}</dd></div>
+        <div><dt class="text-gray-500 inline">Edad:</dt> <dd class="inline">{{ intake.age|default:"—" }}</dd></div>
+        <div><dt class="text-gray-500 inline">Medicamentos actuales:</dt> <dd class="inline">{{ intake.current_medications|default:"—" }}</dd></div>
+        <div><dt class="text-gray-500 inline">Alergias:</dt> <dd class="inline">{{ intake.allergies|default:"—" }}</dd></div>
+        <div><dt class="text-gray-500 inline">Consentimiento:</dt> <dd class="inline">{% if intake.consent_given %}Sí{% else %}No{% endif %}</dd></div>
+    </dl>
+
+    <div class="mt-4">
+        <ul id="blockers-list" class="text-sm text-red-600 list-disc pl-5 mb-1">
+            {% for b in readiness.blockers %}<li>{{ b }}</li>{% endfor %}
+        </ul>
+        <ul id="warnings-list" class="text-sm text-amber-600 list-disc pl-5">
+            {% for w in readiness.warnings %}<li>{{ w }}</li>{% endfor %}
+        </ul>
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm">El paciente aún no completó ningún dato.</p>
+    {% endif %}
+</div>
+
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" name="action" value="start" id="start-btn"
+        class="bg-green-600 text-white rounded px-4 py-2 font-medium hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
+        {% if consultation.status != 'both_present' %}disabled{% endif %}>
+        Iniciar consulta
+    </button>
+    <button type="submit" name="action" value="complete" id="complete-btn"
+        class="bg-gray-600 text-white rounded px-4 py-2 font-medium hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+        {% if consultation.status != 'in_progress' %}disabled{% endif %}>
+        Finalizar consulta
+    </button>
+</form>
+
+<script>
+(function () {
+    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const socket = new WebSocket(`${scheme}://${window.location.host}/ws/consultations/{{ consultation.id }}/`);
+
+    socket.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+        document.getElementById("status-pill").textContent = data.status_display;
+        document.getElementById("patient-banner").classList.toggle("hidden", data.patient_joined);
+
+        const startBtn = document.getElementById("start-btn");
+        const completeBtn = document.getElementById("complete-btn");
+        startBtn.disabled = data.status !== "both_present";
+        completeBtn.disabled = data.status !== "in_progress";
+
+        if (data.readiness) {
+            document.getElementById("blockers-list").innerHTML =
+                data.readiness.blockers.map(b => `<li>${b}</li>`).join("");
+            document.getElementById("warnings-list").innerHTML =
+                data.readiness.warnings.map(w => `<li>${w}</li>`).join("");
+        }
+    };
+})();
+</script>
+{% endblock %}
