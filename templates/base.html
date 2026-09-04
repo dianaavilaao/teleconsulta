@@ -260,6 +260,33 @@
             white-space: nowrap;
         }
 
+        /* --- Etiquetas de síntomas (tags/chips seleccionables) --- */
+        .symptom-tags {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .symptom-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.3rem 0.85rem;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--ink-soft);
+            font-size: 0.85rem;
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+        }
+        .symptom-tag input[type="checkbox"] { display: none; }
+        .symptom-tag.selected {
+            background: var(--accent-soft);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
         .empty-state { color: var(--ink-soft); font-size: 0.92rem; }
         dl.intake-data div { padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
         dl.intake-data div:last-child { border-bottom: none; }

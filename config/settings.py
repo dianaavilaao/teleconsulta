@@ -4,7 +4,14 @@ Django settings for config project (Teleconsulta).
 
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Carga variables de entorno desde .env (no versionado, ver .gitignore) si
+# existe — ej. GROQ_API_KEY para las funciones de IA. No pisa variables que
+# ya estén seteadas en el entorno real (override=False por defecto).
+load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = "django-insecure-j6u=8qksskl0y)$r6ytno8%h*kmz!zu_tyt0o#!$j^eoxk7p)&"
 

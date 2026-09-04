@@ -10,7 +10,7 @@ class ConsultationCreateForm(forms.ModelForm):
     # Declarado explícitamente (no solo vía Meta.widgets) para que el admin
     # no lo reemplace por SplitDateTimeField: ese form_class espera un widget
     # multivalor (fecha + hora por separado) y rompe al combinarse con el
-    # input HTML5 "datetime-local" de un solo valor que usamos acá.
+    # input HTML5 "datetime-local" de un solo valor que usamos aquí.
     scheduled_at = forms.DateTimeField(widget=forms.DateTimeInput(attrs={"type": "datetime-local"}))
 
     class Meta:

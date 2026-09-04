@@ -43,4 +43,5 @@ class RealtimeNotifier:
             "professional_joined": consultation.professional_joined_at is not None,
             "readiness": readiness,
             "steps": build_status_steps(consultation.status),
+            "symptoms": intake.symptoms if intake is not None else [],
         }

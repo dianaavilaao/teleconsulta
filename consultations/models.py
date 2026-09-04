@@ -52,6 +52,13 @@ class Consultation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Briefing generado por IA (services/briefing.py) a partir del intake
+    # confirmado por el paciente. Se persiste para no tener que regenerarlo
+    # (y gastar cuota de API) cada vez que el profesional recarga la
+    # página; el profesional decide cuándo pedir una versión nueva.
+    ai_briefing = models.JSONField(null=True, blank=True)
+    ai_briefing_generated_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ["-created_at"]
 
@@ -78,6 +85,10 @@ class IntakeForm(models.Model):
     consent_given = models.BooleanField("Consentimiento informado", default=False)
     current_medications = models.TextField("Medicamentos actuales", blank=True)
     allergies = models.TextField("Alergias", blank=True)
+    # Síntomas confirmados por el paciente (sugeridos por IA en base a
+    # `reason` vía services/symptom_extraction.py, editables antes de
+    # confirmar). Puramente informativo: no participa en ReadinessService.
+    symptoms = models.JSONField("Síntomas confirmados", default=list, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

@@ -31,7 +31,55 @@
     {% else %}
     <p class="empty-state">El paciente aún no completó ningún dato.</p>
     {% endif %}
+
+    <div style="margin-top: 1rem;">
+        <h2 style="font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 0.4rem;">Síntomas confirmados</h2>
+        <div class="symptom-tags" id="professional-symptom-tags">
+            {% for symptom in intake.symptoms %}
+            <span class="symptom-tag selected" style="cursor: default;">{{ symptom }}</span>
+            {% empty %}
+            <span class="empty-state">Sin síntomas confirmados todavía.</span>
+            {% endfor %}
+        </div>
+    </div>
 </div>
+
+<div class="panel">
+    <h2 style="margin-bottom: 0.75rem;">Briefing con IA</h2>
+    {% if not intake or not intake.symptoms %}
+    <p class="empty-state">El paciente todavía no confirmó síntomas — todavía no se puede generar un briefing.</p>
+    {% else %}
+    <button type="button" id="briefing-btn" class="btn btn-primary">
+        {% if consultation.ai_briefing %}Regenerar briefing{% else %}Generar briefing{% endif %}
+    </button>
+    <span id="briefing-status" class="empty-state" style="margin-left: 0.5rem;"></span>
+
+    <div id="briefing-content" style="margin-top: 1rem; {% if not consultation.ai_briefing %}display: none;{% endif %}">
+        <div>
+            <h2 style="font-size: 0.95rem; margin-bottom: 0.35rem;">Síntesis</h2>
+            <p id="briefing-summary" class="empty-state" style="margin: 0;"></p>
+        </div>
+        <div style="margin-top: 0.85rem;">
+            <h2 style="font-size: 0.95rem; margin-bottom: 0.35rem;">Temas a profundizar en la anamnesis</h2>
+            <ul id="briefing-topics" style="margin: 0; padding-left: 1.1rem; font-size: 0.9rem;"></ul>
+        </div>
+        <div style="margin-top: 0.85rem;">
+            <h2 style="font-size: 0.95rem; margin-bottom: 0.35rem;">Preguntas sugeridas</h2>
+            <ul id="briefing-questions" style="margin: 0; padding-left: 1.1rem; font-size: 0.9rem;"></ul>
+        </div>
+        <div style="margin-top: 0.85rem;">
+            <h2 style="font-size: 0.95rem; margin-bottom: 0.35rem;">Posibles señales de alerta a explorar</h2>
+            <ul id="briefing-warnings" style="margin: 0; padding-left: 1.1rem; font-size: 0.9rem;"></ul>
+        </div>
+        <div style="margin-top: 0.85rem;">
+            <h2 style="font-size: 0.95rem; margin-bottom: 0.35rem;">Datos faltantes o inconsistentes</h2>
+            <ul id="briefing-missing" style="margin: 0; padding-left: 1.1rem; font-size: 0.9rem;"></ul>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if consultation.ai_briefing %}{{ consultation.ai_briefing|json_script:"initial-briefing" }}{% endif %}
 
 <form method="post" style="margin-top: 1.25rem; display: flex; gap: 0.75rem;">
     {% csrf_token %}
@@ -85,6 +133,29 @@
         });
     }
 
+    // Solo lectura: sin checkbox, sin click, sin toggle — es solo informativo.
+    function renderProfessionalSymptoms(symptoms) {
+        const container = document.getElementById("professional-symptom-tags");
+        if (!container) return;
+
+        container.innerHTML = "";
+        if (!symptoms.length) {
+            const empty = document.createElement("span");
+            empty.className = "empty-state";
+            empty.textContent = "Sin síntomas confirmados todavía.";
+            container.appendChild(empty);
+            return;
+        }
+
+        symptoms.forEach(function (symptom) {
+            const tag = document.createElement("span");
+            tag.className = "symptom-tag selected";
+            tag.style.cursor = "default";
+            tag.textContent = symptom; // dato del paciente: textContent, nunca innerHTML
+            container.appendChild(tag);
+        });
+    }
+
     socket.onmessage = function (event) {
         const data = JSON.parse(event.data);
 
@@ -103,6 +174,8 @@
             endVideoCall();
         }
 
+        if (data.symptoms) renderProfessionalSymptoms(data.symptoms);
+
         if (data.readiness) {
             document.getElementById("alert-list").innerHTML =
                 data.readiness.blockers.map(b => `<li class="alert-item blocker">${b}</li>`)
@@ -110,6 +183,86 @@
                     .join("");
         }
     };
+})();
+</script>
+
+<script>
+(function () {
+    const briefingBtn = document.getElementById("briefing-btn");
+    if (!briefingBtn) return; // el paciente todavía no confirmó síntomas: el panel no se renderizó
+
+    const consultationId = {{ consultation.id }};
+    const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]").value;
+    const statusEl = document.getElementById("briefing-status");
+    const contentEl = document.getElementById("briefing-content");
+    const summaryEl = document.getElementById("briefing-summary");
+    const topicsEl = document.getElementById("briefing-topics");
+    const questionsEl = document.getElementById("briefing-questions");
+    const warningsEl = document.getElementById("briefing-warnings");
+    const missingEl = document.getElementById("briefing-missing");
+
+    function fillList(el, items) {
+        el.innerHTML = "";
+        (items || []).forEach(function (item) {
+            const li = document.createElement("li");
+            li.textContent = item; // viene de la IA: textContent, nunca innerHTML
+            el.appendChild(li);
+        });
+    }
+
+    function renderBriefing(briefing) {
+        summaryEl.textContent = briefing.summary || "";
+        fillList(topicsEl, briefing.topics_to_explore);
+        fillList(questionsEl, briefing.suggested_questions);
+        fillList(warningsEl, briefing.warning_signs);
+        fillList(missingEl, briefing.missing_or_inconsistent_data);
+        contentEl.style.display = "";
+    }
+
+    const initialEl = document.getElementById("initial-briefing");
+    if (initialEl) {
+        try {
+            renderBriefing(JSON.parse(initialEl.textContent));
+        } catch (e) {
+            /* no-op */
+        }
+    }
+
+    briefingBtn.addEventListener("click", function () {
+        const originalLabel = briefingBtn.textContent;
+        briefingBtn.disabled = true;
+        briefingBtn.textContent = "Generando...";
+        statusEl.textContent = "";
+
+        fetch(`/profesional/${consultationId}/generar-briefing/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrftoken,
+            },
+        })
+            .then(function (res) {
+                return res.json().then(function (data) {
+                    return { ok: res.ok, data: data };
+                });
+            })
+            .then(function (result) {
+                if (!result.ok) {
+                    statusEl.textContent = result.data.error || "No se pudo generar el briefing, reintentar.";
+                    briefingBtn.textContent = originalLabel;
+                    return;
+                }
+                renderBriefing(result.data.briefing);
+                briefingBtn.textContent = "Regenerar briefing";
+            })
+            .catch(function () {
+                statusEl.textContent = "No se pudo generar el briefing, reintentar.";
+                briefingBtn.textContent = originalLabel;
+            })
+            .finally(function () {
+                briefingBtn.disabled = false;
+            });
+    });
 })();
 </script>
 {% endblock %}

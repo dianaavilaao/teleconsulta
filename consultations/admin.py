@@ -49,6 +49,6 @@ class ConsultationAdmin(admin.ModelAdmin):
         if not change:
             messages.info(
                 request,
-                f"Teleconsulta #{obj.id} creada. Compartí el acceso con "
+                f"Teleconsulta #{obj.id} creada. Comparte el acceso con "
                 f"{obj.patient} y {obj.professional}.",
             )
