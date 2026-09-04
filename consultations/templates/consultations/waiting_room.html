@@ -45,23 +45,19 @@
     </form>
 </div>
 
-<script src="https://meet.ffmuc.net/external_api.js"></script>
+<script src="https://meet.jit.si/external_api.js"></script>
 <script>
 (function () {
     const scheme = window.location.protocol === "https:" ? "wss" : "ws";
     const socket = new WebSocket(`${scheme}://${window.location.host}/ws/consultations/{{ consultation.id }}/`);
 
-    // meet.jit.si exige login como moderador para salas nuevas, lo que en un
-    // iframe embebido suele quedar en pantalla negra (cookies de terceros).
-    // meet.ffmuc.net es una instancia pública comunitaria sin ese requisito.
-    const jitsiDomain = "meet.ffmuc.net";
     const roomName = "teleconsulta-{{ consultation.id }}-{{ consultation.created_at|date:'YmdHis' }}";
     let jitsiApi = null;
 
     function startVideoCall() {
         if (jitsiApi) return;
         document.getElementById("video-panel").classList.remove("hidden");
-        jitsiApi = new JitsiMeetExternalAPI(jitsiDomain, {
+        jitsiApi = new JitsiMeetExternalAPI("meet.jit.si", {
             roomName: roomName,
             parentNode: document.querySelector("#meet-container"),
             width: "100%",
