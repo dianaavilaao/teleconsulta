@@ -27,6 +27,48 @@
 <div class="panel">
     <form method="post">
         {% csrf_token %}
+<<<<<<< Updated upstream
+=======
+
+        <div class="field">
+            <label for="{{ form.reason.id_for_label }}">{{ form.reason.label }}</label>
+            {{ form.reason }}
+            {% if form.reason.errors %}<p style="color: var(--blocker); font-size: 0.8rem; margin-top: 0.25rem;">{{ form.reason.errors|striptags }}</p>{% endif %}
+        </div>
+
+        <div class="field">
+            <button type="button" id="analyze-symptoms-btn" class="btn btn-secondary">Analizar síntomas</button>
+            <span id="symptoms-status" class="empty-state" style="margin-left: 0.5rem;"></span>
+
+            <div class="symptom-tags" id="symptom-tags" style="margin-top: 0.75rem;">
+                <span id="ai-symptom-tags" style="display: contents;"></span>
+                <label class="symptom-tag" id="symptom-other-tag">
+                    <input type="checkbox" id="symptom-other-checkbox">
+                    <span>Otro</span>
+                </label>
+            </div>
+            <input type="text" id="symptom-other-text" class="hidden"
+                placeholder="Describe el síntoma" style="margin-top: 0.6rem;">
+
+            <div style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+                <button type="button" id="add-symptom-btn" class="btn btn-secondary">+ Agregar síntoma</button>
+                <select id="add-symptom-select" class="hidden" style="max-width: 220px;"></select>
+                <span id="symptoms-counter" class="empty-state">0/{{ max_symptoms }}</span>
+                <span id="symptoms-limit-msg" class="empty-state hidden" style="color: var(--warning);">
+                    Máximo {{ max_symptoms }} síntomas
+                </span>
+            </div>
+            <p class="empty-state" style="margin-top: 0.5rem;">
+                Los síntomas que dejes marcados se guardan junto con el resto de la información.
+            </p>
+
+            <!-- Estado real de la selección: se sincroniza en cada cambio (ver
+                 syncSymptomsField en el script de abajo) y viaja con el resto
+                 del formulario al apretar "Guardar información". -->
+            <input type="hidden" name="symptoms" id="symptoms-hidden-input" value="[]">
+        </div>
+
+>>>>>>> Stashed changes
         {% for field in form %}
         <div class="field">
             {% if field.name == "consent_given" %}
@@ -108,4 +150,270 @@
     };
 })();
 </script>
+<<<<<<< Updated upstream
+=======
+
+<script>
+(function () {
+    const MAX_SYMPTOMS = {{ max_symptoms }};
+    const consultationId = {{ consultation.id }};
+    const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]").value;
+    const reasonField = document.getElementById("{{ form.reason.id_for_label }}");
+
+    const analyzeBtn = document.getElementById("analyze-symptoms-btn");
+    const statusEl = document.getElementById("symptoms-status");
+    const aiTagsContainer = document.getElementById("ai-symptom-tags");
+    const otherTag = document.getElementById("symptom-other-tag");
+    const otherCheckbox = document.getElementById("symptom-other-checkbox");
+    const otherText = document.getElementById("symptom-other-text");
+    const addSymptomBtn = document.getElementById("add-symptom-btn");
+    const addSymptomSelect = document.getElementById("add-symptom-select");
+    const counterEl = document.getElementById("symptoms-counter");
+    const limitMsgEl = document.getElementById("symptoms-limit-msg");
+    const hiddenInput = document.getElementById("symptoms-hidden-input");
+
+    let tagIdCounter = 0;
+    let vocabularyTerms = null; // se pide una sola vez a /vocabulario-sintomas/
+
+    function countSelected() {
+        const tagCount = document.querySelectorAll(".symptom-checkbox:checked").length;
+        const otherCount = otherCheckbox.checked && otherText.value.trim() ? 1 : 0;
+        return tagCount + otherCount;
+    }
+
+    // No hay botón de "confirmar": el estado real de la selección viaja en
+    // este input oculto, que se manda junto con el resto del intake al
+    // apretar "Guardar información" (ver el submit del <form> más abajo).
+    function syncSymptomsField() {
+        const selected = Array.from(document.querySelectorAll(".symptom-checkbox:checked")).map(
+            function (cb) {
+                return cb.value;
+            }
+        );
+        if (otherCheckbox.checked && otherText.value.trim()) {
+            selected.push(otherText.value.trim());
+        }
+        hiddenInput.value = JSON.stringify(selected);
+    }
+
+    // Refleja el tope de MAX_SYMPTOMS en el contador y en los controles para
+    // agregar más (no toca los ya seleccionados: solo bloquea sumar otro).
+    function refreshLimitState() {
+        const count = countSelected();
+        counterEl.textContent = count + "/" + MAX_SYMPTOMS;
+
+        const atLimit = count >= MAX_SYMPTOMS;
+        limitMsgEl.classList.toggle("hidden", !atLimit);
+        addSymptomBtn.disabled = atLimit;
+        if (atLimit) addSymptomSelect.classList.add("hidden");
+        if (!otherCheckbox.checked) otherCheckbox.disabled = atLimit;
+
+        syncSymptomsField();
+    }
+
+    // Etiqueta clickeable (tag/chip): todo el <label> es el área de click,
+    // que alterna un checkbox oculto adentro — el estado real que se manda
+    // al backend (hiddenInput, vía syncSymptomsField) no cambia, solo cómo se ve.
+    //
+    // Semántica de click pedida: tocar una etiqueta YA seleccionada la saca
+    // por completo de la lista (no la deja en gris). Tocar una etiqueta
+    // visible pero no seleccionada (solo pasa si la IA sugirió más de
+    // MAX_SYMPTOMS de una vez) la selecciona, salvo que ya se llegó al tope.
+    function createSymptomTag(symptom, checked) {
+        const tag = document.createElement("label");
+        tag.className = "symptom-tag" + (checked ? " selected" : "");
+
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.id = "symptom-" + tagIdCounter++;
+        input.className = "symptom-checkbox";
+        input.value = symptom;
+        input.checked = checked;
+        input.addEventListener("change", function () {
+            if (input.checked) {
+                if (countSelected() > MAX_SYMPTOMS) {
+                    input.checked = false; // no se permite pasar del tope
+                    refreshLimitState();
+                    return;
+                }
+                tag.classList.add("selected");
+            } else {
+                tag.remove(); // deseleccionar = desaparece, no queda en gris
+            }
+            refreshLimitState();
+        });
+
+        const text = document.createElement("span");
+        text.textContent = symptom; // viene de la IA/paciente: textContent, nunca innerHTML
+
+        tag.appendChild(input);
+        tag.appendChild(text);
+        return tag;
+    }
+
+    function renderTags(symptoms, checkedSet) {
+        aiTagsContainer.innerHTML = "";
+        let selectedSoFar = 0;
+        symptoms.forEach(function (symptom) {
+            let checked;
+            if (checkedSet) {
+                checked = checkedSet.has(symptom);
+            } else {
+                // La IA puede sugerir más de MAX_SYMPTOMS: solo las primeras
+                // quedan preseleccionadas, el resto se ve pero no cuenta.
+                checked = selectedSoFar < MAX_SYMPTOMS;
+            }
+            if (checked) selectedSoFar++;
+            aiTagsContainer.appendChild(createSymptomTag(symptom, checked));
+        });
+        refreshLimitState();
+    }
+
+    // Precarga síntomas ya confirmados en una visita anterior, sin llamar a la IA.
+    try {
+        const initial = JSON.parse(document.getElementById("initial-symptoms").textContent);
+        if (initial && initial.length) {
+            renderTags(initial, new Set(initial));
+        }
+    } catch (e) {
+        /* no-op: sin síntomas previos */
+    }
+    refreshLimitState();
+
+    otherCheckbox.addEventListener("change", function () {
+        if (otherCheckbox.checked && countSelected() > MAX_SYMPTOMS) {
+            otherCheckbox.checked = false;
+            refreshLimitState();
+            return;
+        }
+        otherTag.classList.toggle("selected", otherCheckbox.checked);
+        otherText.classList.toggle("hidden", !otherCheckbox.checked);
+        refreshLimitState();
+    });
+
+    // "Otro" solo cuenta para el tope cuando tiene texto: recalculá al tipear.
+    otherText.addEventListener("input", refreshLimitState);
+
+    // El tag "Otro" y su input comparten <form> con el resto del intake (para
+    // que "Guardar información" siga mandando todo junto); sin este guard,
+    // Enter en el input de texto libre dispararía el submit del formulario.
+    otherText.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") event.preventDefault();
+    });
+
+    function currentSymptomTexts() {
+        return new Set(Array.from(document.querySelectorAll(".symptom-checkbox")).map(function (cb) {
+            return cb.value;
+        }));
+    }
+
+    function populateAddSymptomSelect() {
+        const already = currentSymptomTexts();
+        const available = vocabularyTerms.filter(function (term) {
+            return !already.has(term);
+        });
+
+        addSymptomSelect.innerHTML = "";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Elige un síntoma...";
+        addSymptomSelect.appendChild(placeholder);
+
+        available.forEach(function (term) {
+            const option = document.createElement("option");
+            option.value = term;
+            option.textContent = term;
+            addSymptomSelect.appendChild(option);
+        });
+
+        addSymptomSelect.classList.remove("hidden");
+    }
+
+    addSymptomBtn.addEventListener("click", function () {
+        if (addSymptomBtn.disabled) return;
+
+        if (!addSymptomSelect.classList.contains("hidden")) {
+            addSymptomSelect.classList.add("hidden");
+            return;
+        }
+
+        if (vocabularyTerms) {
+            populateAddSymptomSelect();
+            return;
+        }
+
+        addSymptomBtn.disabled = true;
+        fetch(`/paciente/${consultationId}/vocabulario-sintomas/`)
+            .then(function (res) {
+                return res.json();
+            })
+            .then(function (data) {
+                vocabularyTerms = data.symptoms || [];
+                populateAddSymptomSelect();
+            })
+            .catch(function () {
+                statusEl.textContent = "No se pudo cargar la lista de síntomas.";
+            })
+            .finally(function () {
+                addSymptomBtn.disabled = countSelected() >= MAX_SYMPTOMS;
+            });
+    });
+
+    addSymptomSelect.addEventListener("change", function () {
+        const term = addSymptomSelect.value;
+        addSymptomSelect.classList.add("hidden");
+        if (!term) return;
+
+        if (countSelected() >= MAX_SYMPTOMS) {
+            refreshLimitState();
+            return;
+        }
+
+        aiTagsContainer.appendChild(createSymptomTag(term, true));
+        refreshLimitState();
+    });
+
+    analyzeBtn.addEventListener("click", function () {
+        const reason = reasonField ? reasonField.value.trim() : "";
+        if (!reason) {
+            statusEl.textContent = "Escribe primero el motivo de consulta.";
+            return;
+        }
+
+        analyzeBtn.disabled = true;
+        statusEl.textContent = "Analizando...";
+
+        fetch(`/paciente/${consultationId}/analizar-sintomas/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrftoken,
+            },
+            body: JSON.stringify({ reason: reason }),
+        })
+            .then(function (res) {
+                return res.json().then(function (data) {
+                    return { ok: res.ok, data: data };
+                });
+            })
+            .then(function (result) {
+                if (!result.ok) {
+                    statusEl.textContent =
+                        result.data.error || "No se pudo analizar los síntomas. Puedes agregarlos manualmente con \"+ Agregar síntoma\".";
+                    return;
+                }
+                const symptoms = result.data.symptoms || [];
+                renderTags(symptoms);
+                statusEl.textContent = symptoms.length ? "" : "No se detectaron síntomas en el texto.";
+            })
+            .catch(function () {
+                statusEl.textContent = "No se pudo contactar al servicio de IA. Puedes agregar síntomas manualmente con \"+ Agregar síntoma\".";
+            })
+            .finally(function () {
+                analyzeBtn.disabled = false;
+            });
+    });
+})();
+</script>
+>>>>>>> Stashed changes
 {% endblock %}

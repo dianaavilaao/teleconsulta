@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Usuarios{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Usuarios</h1>
+    <a href="{% url 'accounts:panel_user_create' %}" class="btn btn-primary">+ Nuevo usuario</a>
+</div>
+
+{% if users %}
+    {% for u in users %}
+    <div class="list-item">
+        <div class="list-item-row">
+            <div>
+                <p class="list-item-name">{{ u.username }}{% if u.first_name %} — {{ u.first_name }}{% endif %}</p>
+                <p class="list-item-meta">
+                    {% if u.is_staff %}Admin{% elif u.profile.role == "patient" %}Paciente{% elif u.profile.role == "professional" %}Profesional{% else %}Sin rol{% endif %}
+                    {% if u.profile.role == "professional" %}
+                        · {% if u.profile.is_available %}Disponible{% else %}No disponible{% endif %}
+                    {% endif %}
+                </p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span class="badge" style="{% if not u.is_active %}background: var(--blocker-soft); color: var(--blocker);{% endif %}">
+                    {% if u.is_active %}Activo{% else %}Desactivado{% endif %}
+                </span>
+                <a href="{% url 'accounts:panel_user_edit' u.id %}" class="btn btn-secondary">Editar</a>
+                {% if u.is_active %}
+                <form method="post" action="{% url 'accounts:panel_user_deactivate' u.id %}" style="margin: 0;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary">Desactivar</button>
+                </form>
+                {% else %}
+                <form method="post" action="{% url 'accounts:panel_user_reactivate' u.id %}" style="margin: 0;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary">Reactivar</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+<p class="empty-state">Todavía no hay usuarios cargados.</p>
+{% endif %}
+{% endblock %}

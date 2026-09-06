@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Nueva consulta{% endblock %}
+{% block content %}
+<h1 style="margin-bottom: 1.5rem;">Nueva consulta</h1>
+
+<div class="panel">
+    <form method="post">
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}
+            <p style="color: var(--blocker); font-size: 0.8rem; margin-top: 0.25rem;">{{ field.errors|striptags }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">Crear consulta</button>
+    </form>
+</div>
+
+<a href="{% url 'consultations:panel_consultation_list' %}" class="btn btn-secondary" style="margin-top: 1rem; display: inline-block;">
+    Volver a consultas
+</a>
+{% endblock %}

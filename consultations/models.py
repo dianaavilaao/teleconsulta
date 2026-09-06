@@ -96,3 +96,40 @@ class IntakeForm(models.Model):
         if (today.month, today.day) < (self.birth_date.month, self.birth_date.day):
             years -= 1
         return years
+
+
+class Diagnosis(models.Model):
+    """
+    Registro clínico interno que el profesional puede cargar una vez que
+    la consulta terminó (opcional: no todas las consultas requieren uno).
+
+    Importante — privacidad: esto NUNCA debe llegar al paciente. A
+    diferencia de IntakeForm (que el paciente escribe y el profesional
+    lee), Diagnosis es en un solo sentido: lo escribe el profesional y
+    solo lo lee él mismo (y el admin, en modo lectura). No se serializa en
+    RealtimeNotifier ni se expone en ninguna vista con @patient_required.
+    """
+
+    consultation = models.OneToOneField(
+        Consultation, on_delete=models.CASCADE, related_name="diagnosis"
+    )
+    diagnosis_text = models.TextField("Diagnóstico", blank=True)
+    recommendations = models.TextField("Recomendaciones", blank=True)
+    follow_up_needed = models.BooleanField("Requiere seguimiento", default=False)
+    follow_up_notes = models.TextField("Notas de seguimiento", blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="diagnoses_created",
+        help_text="Profesional que registró el diagnóstico.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Diagnóstico"
+        verbose_name_plural = "Diagnósticos"
+
+    def __str__(self):
+        return f"Diagnóstico de consulta #{self.consultation_id}"

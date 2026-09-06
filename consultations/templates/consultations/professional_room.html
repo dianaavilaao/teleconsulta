@@ -13,6 +13,49 @@
     <div id="meet-container" style="width: 100%; height: 520px;"></div>
 </div>
 
+{% if consultation.status == 'completed' %}
+<div class="panel">
+    <h2 style="margin-bottom: 0.75rem;">Diagnóstico</h2>
+    <p class="empty-state" style="margin-bottom: 0.75rem;">
+        Registro interno: el paciente nunca ve esta información. Es opcional, dejalo vacío
+        si no aplica un diagnóstico formal para esta consulta.
+    </p>
+    <form method="post" action="{% url 'consultations:save_diagnosis' consultation.id %}">
+        {% csrf_token %}
+        <div class="field">
+            <label for="id_diagnosis_text">Diagnóstico</label>
+            <textarea name="diagnosis_text" id="id_diagnosis_text" rows="3">{{ diagnosis.diagnosis_text|default:"" }}</textarea>
+        </div>
+        <div class="field">
+            <label for="id_recommendations">Recomendaciones</label>
+            <textarea name="recommendations" id="id_recommendations" rows="3">{{ diagnosis.recommendations|default:"" }}</textarea>
+        </div>
+        <div class="field">
+            <div class="checkbox-row">
+                <input type="checkbox" name="follow_up_needed" id="id_follow_up_needed"
+                    {% if diagnosis.follow_up_needed %}checked{% endif %}>
+                <label for="id_follow_up_needed">Requiere seguimiento</label>
+            </div>
+        </div>
+        <div class="field" id="follow-up-notes-field" {% if not diagnosis.follow_up_needed %}style="display: none;"{% endif %}>
+            <label for="id_follow_up_notes">Notas de seguimiento</label>
+            <textarea name="follow_up_notes" id="id_follow_up_notes" rows="2">{{ diagnosis.follow_up_notes|default:"" }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar diagnóstico</button>
+    </form>
+</div>
+
+<script>
+(function () {
+    const checkbox = document.getElementById("id_follow_up_needed");
+    const notesField = document.getElementById("follow-up-notes-field");
+    checkbox.addEventListener("change", function () {
+        notesField.style.display = checkbox.checked ? "" : "none";
+    });
+})();
+</script>
+{% endif %}
+
 <div class="panel">
     <h2 style="margin-bottom: 0.75rem;">Información pre-consulta</h2>
     {% if intake %}
@@ -33,6 +76,50 @@
     {% endif %}
 </div>
 
+<<<<<<< Updated upstream
+=======
+<div class="panel">
+    <h2 style="margin-bottom: 0.75rem;">Briefing con IA</h2>
+    {% if not intake or not intake.symptoms %}
+    <p class="empty-state">El paciente todavía no confirmó síntomas — todavía no se puede generar un briefing.</p>
+    {% else %}
+    <button type="button" id="briefing-btn" class="btn btn-primary">
+        {% if consultation.ai_briefing %}Regenerar briefing{% else %}Generar briefing{% endif %}
+    </button>
+    <span id="briefing-status" class="empty-state" style="margin-left: 0.5rem;"></span>
+
+    <details id="briefing-details" style="margin-top: 1rem;" {% if consultation.ai_briefing %}open{% endif %}>
+        <summary style="cursor: pointer; color: var(--ink-soft); font-size: 0.9rem;">Ver briefing completo</summary>
+        <div id="briefing-content" style="margin-top: 0.85rem;">
+            <div>
+                <h2 style="font-size: 0.95rem; margin-bottom: 0.35rem;">Síntesis</h2>
+                <p id="briefing-summary" class="empty-state" style="margin: 0;"></p>
+            </div>
+            <div style="margin-top: 0.85rem;">
+                <h2 style="font-size: 0.95rem; margin-bottom: 0.35rem;">Temas a profundizar en la anamnesis</h2>
+                <ul id="briefing-topics" style="margin: 0; padding-left: 1.1rem; font-size: 0.9rem;"></ul>
+            </div>
+            <div style="margin-top: 0.85rem;">
+                <h2 style="font-size: 0.95rem; margin-bottom: 0.35rem;">Preguntas sugeridas</h2>
+                <ul id="briefing-questions" style="margin: 0; padding-left: 1.1rem; font-size: 0.9rem;"></ul>
+            </div>
+            <div style="margin-top: 0.85rem;">
+                <h2 style="font-size: 0.95rem; margin-bottom: 0.35rem;">Posibles señales de alerta a explorar</h2>
+                <ul id="briefing-warnings" style="margin: 0; padding-left: 1.1rem; font-size: 0.9rem;"></ul>
+            </div>
+            <div style="margin-top: 0.85rem;">
+                <h2 style="font-size: 0.95rem; margin-bottom: 0.35rem;">Datos faltantes o inconsistentes</h2>
+                <ul id="briefing-missing" style="margin: 0; padding-left: 1.1rem; font-size: 0.9rem;"></ul>
+            </div>
+        </div>
+    </details>
+    {% endif %}
+</div>
+
+{% if consultation.ai_briefing %}{{ consultation.ai_briefing|json_script:"initial-briefing" }}{% endif %}
+
+{% if consultation.status != 'completed' %}
+>>>>>>> Stashed changes
 <form method="post" style="margin-top: 1.25rem; display: flex; gap: 0.75rem;">
     {% csrf_token %}
     <button type="submit" name="action" value="start" id="start-btn" class="btn btn-primary"
@@ -44,6 +131,7 @@
         Finalizar consulta
     </button>
 </form>
+{% endif %}
 
 <script src="https://meet.jit.si/external_api.js"></script>
 <script>
@@ -92,10 +180,12 @@
 
         if (data.steps) updateStepper(data.steps);
 
+        // El form de Iniciar/Finalizar no se renderiza una vez "completed",
+        // así que estos botones pueden no existir en el DOM.
         const startBtn = document.getElementById("start-btn");
         const completeBtn = document.getElementById("complete-btn");
-        startBtn.disabled = data.status !== "both_present";
-        completeBtn.disabled = data.status !== "in_progress";
+        if (startBtn) startBtn.disabled = data.status !== "both_present";
+        if (completeBtn) completeBtn.disabled = data.status !== "in_progress";
 
         if (data.status === "in_progress") {
             startVideoCall();
@@ -112,4 +202,87 @@
     };
 })();
 </script>
+<<<<<<< Updated upstream
+=======
+
+<script>
+(function () {
+    const briefingBtn = document.getElementById("briefing-btn");
+    if (!briefingBtn) return; // el paciente todavía no confirmó síntomas: el panel no se renderizó
+
+    const consultationId = {{ consultation.id }};
+    const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]").value;
+    const statusEl = document.getElementById("briefing-status");
+    const detailsEl = document.getElementById("briefing-details");
+    const summaryEl = document.getElementById("briefing-summary");
+    const topicsEl = document.getElementById("briefing-topics");
+    const questionsEl = document.getElementById("briefing-questions");
+    const warningsEl = document.getElementById("briefing-warnings");
+    const missingEl = document.getElementById("briefing-missing");
+
+    function fillList(el, items) {
+        el.innerHTML = "";
+        (items || []).forEach(function (item) {
+            const li = document.createElement("li");
+            li.textContent = item; // viene de la IA: textContent, nunca innerHTML
+            el.appendChild(li);
+        });
+    }
+
+    function renderBriefing(briefing) {
+        summaryEl.textContent = briefing.summary || "";
+        fillList(topicsEl, briefing.topics_to_explore);
+        fillList(questionsEl, briefing.suggested_questions);
+        fillList(warningsEl, briefing.warning_signs);
+        fillList(missingEl, briefing.missing_or_inconsistent_data);
+        detailsEl.open = true; // recién generado/regenerado: mostralo expandido
+    }
+
+    const initialEl = document.getElementById("initial-briefing");
+    if (initialEl) {
+        try {
+            renderBriefing(JSON.parse(initialEl.textContent));
+        } catch (e) {
+            /* no-op */
+        }
+    }
+
+    briefingBtn.addEventListener("click", function () {
+        const originalLabel = briefingBtn.textContent;
+        briefingBtn.disabled = true;
+        briefingBtn.textContent = "Generando...";
+        statusEl.textContent = "";
+
+        fetch(`/profesional/${consultationId}/generar-briefing/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrftoken,
+            },
+        })
+            .then(function (res) {
+                return res.json().then(function (data) {
+                    return { ok: res.ok, data: data };
+                });
+            })
+            .then(function (result) {
+                if (!result.ok) {
+                    statusEl.textContent = result.data.error || "No se pudo generar el briefing, reintentar.";
+                    briefingBtn.textContent = originalLabel;
+                    return;
+                }
+                renderBriefing(result.data.briefing);
+                briefingBtn.textContent = "Regenerar briefing";
+            })
+            .catch(function () {
+                statusEl.textContent = "No se pudo generar el briefing, reintentar.";
+                briefingBtn.textContent = originalLabel;
+            })
+            .finally(function () {
+                briefingBtn.disabled = false;
+            });
+    });
+})();
+</script>
+>>>>>>> Stashed changes
 {% endblock %}
