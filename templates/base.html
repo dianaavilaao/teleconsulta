@@ -79,6 +79,21 @@
             margin: 0 auto;
             padding: 2.5rem 1.5rem 4rem;
         }
+        main.main-wide { max-width: 1080px; }
+
+        /* --- Layout de dos columnas: info a la izquierda (scrollea),
+               videollamada a la derecha (fija mientras se scrollea) --- */
+        .consult-layout {
+            display: flex;
+            align-items: flex-start;
+            gap: 1.5rem;
+        }
+        .consult-main { flex: 1 1 400px; min-width: 0; }
+        .consult-video { flex: 0 0 460px; position: sticky; top: 1.5rem; }
+        @media (max-width: 860px) {
+            .consult-layout { flex-direction: column; }
+            .consult-video { position: static; flex-basis: auto; width: 100%; }
+        }
 
         .page-header {
             display: flex;
@@ -364,7 +379,7 @@
         {% endif %}
     </nav>
 
-    <main>
+    <main class="{% block main_class %}{% endblock %}">
         {% if messages %}
             {% for message in messages %}
                 <div class="flash {% if message.tags == 'error' %}flash-error{% else %}flash-success{% endif %}">

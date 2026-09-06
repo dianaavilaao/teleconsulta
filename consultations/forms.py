@@ -29,10 +29,12 @@ class ConsultationCreateForm(forms.ModelForm):
         self.fields["patient"].queryset = self.fields["patient"].queryset.filter(
             profile__role=UserProfile.Role.PATIENT
         )
+        self.fields["patient"].empty_label = "Selecciona un paciente"
         self.fields["professional"].queryset = self.fields["professional"].queryset.filter(
             profile__role=UserProfile.Role.PROFESSIONAL,
             profile__is_available=True,
         )
+        self.fields["professional"].empty_label = "Selecciona un profesional"
 
 
 class IntakeSubmitForm(forms.ModelForm):

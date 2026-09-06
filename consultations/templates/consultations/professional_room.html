@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Consulta con {{ consultation.patient }}{% endblock %}
+{% block main_class %}main-wide{% endblock %}
 {% block content %}
 <h1 style="margin-bottom: 1.5rem;">Paciente: {{ consultation.patient.get_full_name|default:consultation.patient.username }}</h1>
 
@@ -9,9 +10,8 @@
     El paciente todavía no ha ingresado a la sala de espera.
 </div>
 
-<div id="video-panel" class="panel {% if consultation.status != 'in_progress' %}hidden{% endif %}" style="padding: 0; overflow: hidden;">
-    <div id="meet-container" style="width: 100%; height: 520px;"></div>
-</div>
+<div class="consult-layout">
+<div class="consult-main">
 
 {% if consultation.status == 'completed' %}
 <div class="panel">
@@ -140,6 +140,14 @@
     </button>
 </form>
 {% endif %}
+
+</div>
+
+<div id="video-panel" class="consult-video panel {% if consultation.status != 'in_progress' %}hidden{% endif %}" style="padding: 0; overflow: hidden;">
+    <div id="meet-container" style="width: 100%; height: 520px;"></div>
+</div>
+
+</div>
 
 <script src="https://meet.jit.si/external_api.js"></script>
 <script>

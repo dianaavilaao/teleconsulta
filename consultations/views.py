@@ -127,6 +127,20 @@ def waiting_room(request, consultation_id):
     sm.patient_join()  # idempotente: no-op si ya esta avanzada
 
     if request.method == "POST":
+        # Chequeo ANTES de tocar el intake: submit_intake ya rechaza esta
+        # transición para in_progress/completed, pero eso pasa recién
+        # después de guardar el form — sin este guard, un POST directo
+        # (sin pasar por la UI, que ya oculta el form en ese momento)
+        # lograba pisar la información igual antes de que la excepción se
+        # levantara. El intake queda de solo lectura desde que arranca la
+        # consulta, en el backend y no solo en el template.
+        if consultation.status in (Consultation.Status.IN_PROGRESS, Consultation.Status.COMPLETED):
+            messages.error(
+                request,
+                "No se puede modificar el intake una vez iniciada o completada la consulta.",
+            )
+            return redirect("consultations:waiting_room", consultation_id=consultation.id)
+
         form = IntakeSubmitForm(request.POST, instance=intake)
         symptoms, symptoms_error = _parse_symptoms_field(request.POST.get("symptoms"))
         if symptoms_error:
