@@ -4,7 +4,7 @@
 <h1 style="margin-bottom: 1.5rem;">Mis teleconsultas</h1>
 {% if consultations %}
     {% for c in consultations %}
-    <a href="{% url 'consultations:waiting_room' c.id %}" class="list-item">
+    <a href="{% if c.status == 'completed' %}{% url 'consultations:patient_history_detail' c.id %}{% else %}{% url 'consultations:waiting_room' c.id %}{% endif %}" class="list-item">
         <div class="list-item-row">
             <div>
                 <p class="list-item-name">Con {{ c.professional.get_full_name|default:c.professional.username }}</p>

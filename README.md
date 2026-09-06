@@ -36,17 +36,19 @@ python manage.py runserver      # alcanza para probar todo (WS incluido)
 
 | Usuario        | Rol          | Uso                                             |
 |----------------|--------------|--------------------------------------------------|
-| `admin`        | Admin        | Entra a `/admin/` y crea teleconsultas           |
+| `admin`        | Admin        | Entra a `/panel/` y gestiona consultas/usuarios  |
 | `paciente1`    | Paciente     | Sala de espera de la consulta #1                 |
 | `paciente2`    | Paciente     | Sala de espera de la consulta #2                 |
 | `profesional1` | Profesional  | Ve ambas consultas (#1 y #2) asignadas           |
 
 ## Cómo probar el flujo completo
 
-1. Entrar como **admin** en `http://localhost:8000/admin/` → **Consultations**
-   → **Add consultation**. Elegir paciente y profesional (los combos ya filtran
-   por rol) y guardar. Esto es el "formulario simple" del enunciado: se
-   reutiliza el Django Admin en vez de construir un CRUD aparte.
+1. Entrar como **admin** en `http://localhost:8000/login/`. Se lo redirige a
+   `/panel/consultas/`, su panel propio (ver sección "Panel de admin" más
+   abajo) — **ya no es el Django Admin (`/admin/`)**. Ahí, **"+ Nueva
+   consulta"** → elegir paciente y profesional (los combos ya filtran por rol
+   y, si el profesional marcó que no está disponible, tampoco aparece — ver
+   Tarea de disponibilidad) y guardar.
 2. Abrir otra pestaña/navegador (o modo incógnito) y entrar como **paciente1**
    en `http://localhost:8000/login/`. Se lo redirige a su sala de espera.
 3. Completar el formulario de intake (motivo, fecha de nacimiento,
@@ -62,6 +64,41 @@ python manage.py runserver      # alcanza para probar todo (WS incluido)
    estado es `both_present`) y luego **"Finalizar consulta"**.
 6. Todo el tiempo, los cambios de estado se propagan por WebSocket
    (`/ws/consultations/<id>/`) a ambas pantallas sin refrescar.
+
+## Panel de admin (`/panel/`)
+
+El rol admin (`user.is_staff`) ya **no** usa el Django Admin (`/admin/`) como
+flujo principal — tiene su propio panel, con el mismo sistema de diseño que
+el resto de la app:
+
+- **`/panel/consultas/`** — lista todas las teleconsultas; **"+ Nueva
+  consulta"** (`/panel/consultas/nueva/`) reusa `ConsultationCreateForm`
+  (mismos filtros de rol y disponibilidad de siempre).
+- **`/panel/usuarios/`** — lista todos los `User`, con su rol (paciente/
+  profesional/admin) y si están activos. Desde ahí:
+  - **"+ Nuevo usuario"** (`/panel/usuarios/nuevo/`): username, nombre,
+    contraseña y rol — incluyendo "Admin" (marca `is_staff`, sin
+    `UserProfile`).
+  - **"Editar"**: nombre, rol (migra el `UserProfile` si cambia de paciente
+    a profesional o viceversa) y contraseña opcional (vacía = no la cambia).
+  - **"Desactivar" / "Reactivar"**: pone `is_active=False`/`True`. Django ya
+    respeta esto para el login. **Nunca se borra un `User`** — `Consultation`
+    usa `on_delete=PROTECT` en `patient`/`professional` a propósito, así que
+    borrar rompería la integridad de las consultas ya creadas; desactivar es
+    la forma correcta y reversible de sacar a alguien de circulación.
+
+`/admin/` (Django Admin) sigue activo en `config/urls.py`, pero solo para
+debugging directo de la base de datos durante desarrollo — ya no tiene
+registrado nada de `consultations` (ver `consultations/admin.py`), y
+`accounts/admin.py` dejó de personalizarlo (usa el `UserAdmin` por defecto).
+
+### Disponibilidad del profesional
+
+`UserProfile.is_available` (default `True`) controla si un profesional
+aparece como opción al crear una consulta **nueva** — no afecta las
+consultas que ya tiene asignadas. Cada profesional ve un switch en
+`/profesional/` para prenderla/apagarla, que guarda al toque vía
+`POST /profesional/disponibilidad/` (fetch, sin recargar).
 
 ## Diseño / decisiones técnicas
 
@@ -93,9 +130,11 @@ python manage.py runserver      # alcanza para probar todo (WS incluido)
     muestra como mensaje de error, no como excepción sin manejar.
 - **Roles**: `User` nativo de Django + `UserProfile.role` (paciente/
   profesional). El rol "admin" no se modela como campo: se usa
-  `user.is_staff`, lo que además da acceso gratis al Django Admin.
-  Autenticación con el login/logout estándar de Django — no es el foco de la
-  prueba, así que no se agregó nada más (JWT, 2FA, etc.).
+  `user.is_staff`, que la app resuelve con su propio panel (`/panel/`, ver
+  arriba) en vez de con el Django Admin. Autenticación con el login/logout
+  estándar de Django (+ alta pública en `/signup/`, solo paciente/
+  profesional) — no es el foco de la prueba, así que no se agregó nada más
+  (JWT, 2FA, etc.).
 - **Tiempo real**: un `ConsultationConsumer` (Channels) por consulta,
   agrupado en `consultation_{id}`. Cada vista (paciente y profesional) abre
   un WebSocket nativo al cargar la página; al recibir un mensaje actualiza el
@@ -178,9 +217,9 @@ así que cualquiera de las dos formas funciona igual.
 - No hay tests automatizados (unit tests de `ReadinessService` y
   `ConsultationStateMachine` serían el primer paso natural dado que están
   aislados de Django).
-- El admin puede crear una teleconsulta para cualquier par
-  paciente/profesional existente, pero no crea usuarios nuevos desde ahí
-  (se crean como cualquier `User` de Django, vía admin o `seed_demo`).
+- El admin puede crear una teleconsulta para cualquier par paciente/
+  profesional existente desde `/panel/consultas/nueva/`, y usuarios nuevos
+  (paciente, profesional o admin) desde `/panel/usuarios/nuevo/`.
 
 ## Nota sobre uso de IA
 

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Detalle de consulta{% endblock %}
+{% block content %}
+<h1 style="margin-bottom: 0.3rem;">Consulta con {{ consultation.professional.get_full_name|default:consultation.professional.username }}</h1>
+<p style="color: var(--ink-soft); font-size: 0.9rem; margin-bottom: 1.5rem;">{{ consultation.scheduled_at }}</p>
+
+<div class="panel">
+    <h2 style="margin-bottom: 0.75rem;">Datos de la consulta</h2>
+    <dl class="intake-data">
+        <div><dt>Profesional:</dt> <dd>{{ consultation.professional.get_full_name|default:consultation.professional.username }}</dd></div>
+        <div><dt>Fecha:</dt> <dd>{{ consultation.scheduled_at }}</dd></div>
+        <div><dt>Estado:</dt> <dd>{{ consultation.get_status_display }}</dd></div>
+    </dl>
+</div>
+
+<div class="panel">
+    <h2 style="margin-bottom: 0.75rem;">Información que registraste</h2>
+    {% if intake %}
+    <dl class="intake-data" style="margin-bottom: 1rem;">
+        <div><dt>Motivo:</dt> <dd>{{ intake.reason|default:"—" }}</dd></div>
+        <div><dt>Edad:</dt> <dd>{{ intake.age|default:"—" }}</dd></div>
+        <div><dt>Medicamentos actuales:</dt> <dd>{{ intake.current_medications|default:"—" }}</dd></div>
+        <div><dt>Alergias:</dt> <dd>{{ intake.allergies|default:"—" }}</dd></div>
+        <div><dt>Consentimiento:</dt> <dd>{% if intake.consent_given %}Sí{% else %}No{% endif %}</dd></div>
+    </dl>
+
+    <h2 style="font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 0.4rem;">Síntomas</h2>
+    <div class="symptom-tags">
+        {% for symptom in intake.symptoms %}
+        <span class="symptom-tag selected" style="cursor: default;">{{ symptom }}</span>
+        {% empty %}
+        <span class="empty-state">No se registraron síntomas.</span>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-state">No se completó información para esta consulta.</p>
+    {% endif %}
+</div>
+
+<a href="{% url 'consultations:patient_list' %}" class="btn btn-secondary" style="margin-top: 0.5rem; display: inline-block;">
+    Volver a mis teleconsultas
+</a>
+{% endblock %}

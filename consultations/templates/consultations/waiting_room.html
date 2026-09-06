@@ -56,13 +56,14 @@
                     Máximo {{ max_symptoms }} síntomas
                 </span>
             </div>
+            <p class="empty-state" style="margin-top: 0.5rem;">
+                Los síntomas que dejes marcados se guardan junto con el resto de la información.
+            </p>
 
-            <div style="margin-top: 0.75rem;">
-                <button type="button" id="confirm-symptoms-btn" class="btn btn-primary">Confirmar síntomas</button>
-                <span id="symptoms-confirmed-msg" class="readiness-ok hidden" style="margin-left: 0.5rem;">
-                    Síntomas guardados.
-                </span>
-            </div>
+            <!-- Estado real de la selección: se sincroniza en cada cambio (ver
+                 syncSymptomsField en el script de abajo) y viaja con el resto
+                 del formulario al apretar "Guardar información". -->
+            <input type="hidden" name="symptoms" id="symptoms-hidden-input" value="[]">
         </div>
 
         {% for field in form %}
@@ -160,17 +161,16 @@
     const reasonField = document.getElementById("{{ form.reason.id_for_label }}");
 
     const analyzeBtn = document.getElementById("analyze-symptoms-btn");
-    const confirmBtn = document.getElementById("confirm-symptoms-btn");
     const statusEl = document.getElementById("symptoms-status");
     const aiTagsContainer = document.getElementById("ai-symptom-tags");
     const otherTag = document.getElementById("symptom-other-tag");
     const otherCheckbox = document.getElementById("symptom-other-checkbox");
     const otherText = document.getElementById("symptom-other-text");
-    const confirmedMsg = document.getElementById("symptoms-confirmed-msg");
     const addSymptomBtn = document.getElementById("add-symptom-btn");
     const addSymptomSelect = document.getElementById("add-symptom-select");
     const counterEl = document.getElementById("symptoms-counter");
     const limitMsgEl = document.getElementById("symptoms-limit-msg");
+    const hiddenInput = document.getElementById("symptoms-hidden-input");
 
     let tagIdCounter = 0;
     let vocabularyTerms = null; // se pide una sola vez a /vocabulario-sintomas/
@@ -179,6 +179,21 @@
         const tagCount = document.querySelectorAll(".symptom-checkbox:checked").length;
         const otherCount = otherCheckbox.checked && otherText.value.trim() ? 1 : 0;
         return tagCount + otherCount;
+    }
+
+    // No hay botón de "confirmar": el estado real de la selección viaja en
+    // este input oculto, que se manda junto con el resto del intake al
+    // apretar "Guardar información" (ver el submit del <form> más abajo).
+    function syncSymptomsField() {
+        const selected = Array.from(document.querySelectorAll(".symptom-checkbox:checked")).map(
+            function (cb) {
+                return cb.value;
+            }
+        );
+        if (otherCheckbox.checked && otherText.value.trim()) {
+            selected.push(otherText.value.trim());
+        }
+        hiddenInput.value = JSON.stringify(selected);
     }
 
     // Refleja el tope de MAX_SYMPTOMS en el contador y en los controles para
@@ -192,11 +207,13 @@
         addSymptomBtn.disabled = atLimit;
         if (atLimit) addSymptomSelect.classList.add("hidden");
         if (!otherCheckbox.checked) otherCheckbox.disabled = atLimit;
+
+        syncSymptomsField();
     }
 
     // Etiqueta clickeable (tag/chip): todo el <label> es el área de click,
-    // que alterna un checkbox oculto adentro — el contrato de datos hacia el
-    // backend (confirmBtn más abajo) no cambia, solo cómo se ve.
+    // que alterna un checkbox oculto adentro — el estado real que se manda
+    // al backend (hiddenInput, vía syncSymptomsField) no cambia, solo cómo se ve.
     //
     // Semántica de click pedida: tocar una etiqueta YA seleccionada la saca
     // por completo de la lista (no la deja en gris). Tocar una etiqueta
@@ -382,7 +399,7 @@
             .then(function (result) {
                 if (!result.ok) {
                     statusEl.textContent =
-                        result.data.error || "No se pudo analizar los síntomas. Puedes confirmarlos manualmente.";
+                        result.data.error || "No se pudo analizar los síntomas. Puedes agregarlos manualmente con \"+ Agregar síntoma\".";
                     return;
                 }
                 const symptoms = result.data.symptoms || [];
@@ -390,53 +407,10 @@
                 statusEl.textContent = symptoms.length ? "" : "No se detectaron síntomas en el texto.";
             })
             .catch(function () {
-                statusEl.textContent = "No se pudo contactar al servicio de IA. Puedes confirmar síntomas manualmente.";
+                statusEl.textContent = "No se pudo contactar al servicio de IA. Puedes agregar síntomas manualmente con \"+ Agregar síntoma\".";
             })
             .finally(function () {
                 analyzeBtn.disabled = false;
-            });
-    });
-
-    confirmBtn.addEventListener("click", function () {
-        const selected = Array.from(document.querySelectorAll(".symptom-checkbox:checked")).map(
-            function (cb) {
-                return cb.value;
-            }
-        );
-        if (otherCheckbox.checked && otherText.value.trim()) {
-            selected.push(otherText.value.trim());
-        }
-
-        confirmBtn.disabled = true;
-
-        fetch(`/paciente/${consultationId}/confirmar-sintomas/`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRFToken": csrftoken,
-            },
-            body: JSON.stringify({ symptoms: selected }),
-        })
-            .then(function (res) {
-                return res.json().then(function (data) {
-                    return { ok: res.ok, data: data };
-                });
-            })
-            .then(function (result) {
-                if (!result.ok) {
-                    statusEl.textContent = result.data.error || "No se pudieron guardar los síntomas.";
-                    return;
-                }
-                confirmedMsg.classList.remove("hidden");
-                setTimeout(function () {
-                    confirmedMsg.classList.add("hidden");
-                }, 3000);
-            })
-            .catch(function () {
-                statusEl.textContent = "No se pudo guardar. Revisa tu conexión e intenta de nuevo.";
-            })
-            .finally(function () {
-                confirmBtn.disabled = false;
             });
     });
 })();

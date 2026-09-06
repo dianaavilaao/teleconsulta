@@ -2,6 +2,24 @@
 {% block title %}Mis consultas asignadas{% endblock %}
 {% block content %}
 <h1 style="margin-bottom: 1.5rem;">Mis consultas asignadas</h1>
+
+<div class="panel" style="margin-bottom: 1.25rem; display: flex; align-items: center; gap: 0.75rem;">
+    {% csrf_token %}
+    <label class="switch">
+        <input type="checkbox" id="availability-toggle" {% if user.profile.is_available %}checked{% endif %}>
+        <span class="switch-track"></span>
+    </label>
+    <div>
+        <p style="margin: 0; font-weight: 500;" id="availability-label">
+            {% if user.profile.is_available %}Disponible{% else %}No disponible{% endif %}
+        </p>
+        <p class="empty-state" style="margin: 0;">
+            Si estás no disponible, no vas a aparecer como opción al crear consultas nuevas.
+            No afecta las consultas que ya tienes asignadas.
+        </p>
+    </div>
+</div>
+
 {% if consultations %}
     {% for c in consultations %}
     <a href="{% url 'consultations:professional_room' c.id %}" class="list-item">
@@ -10,11 +28,51 @@
                 <p class="list-item-name">Paciente: {{ c.patient.get_full_name|default:c.patient.username }}</p>
                 <p class="list-item-meta">{{ c.scheduled_at }}</p>
             </div>
-            <span class="badge">{{ c.get_status_display }}</span>
+            <div style="text-align: right;">
+                <span class="badge">{{ c.get_status_display }}</span>
+                {% if c.status == 'completed' %}
+                <br>
+                <span class="badge" style="margin-top: 0.3rem; {% if c.diagnosis %}background: var(--accent-soft); color: var(--accent);{% else %}background: var(--warning-soft); color: var(--warning);{% endif %}">
+                    {% if c.diagnosis %}Diagnóstico registrado{% else %}Sin diagnóstico{% endif %}
+                </span>
+                {% endif %}
+            </div>
         </div>
     </a>
     {% endfor %}
 {% else %}
 <p class="empty-state">No tienes consultas asignadas todavía.</p>
 {% endif %}
+
+<script>
+(function () {
+    const toggle = document.getElementById("availability-toggle");
+    const label = document.getElementById("availability-label");
+    const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]").value;
+
+    toggle.addEventListener("change", function () {
+        const previous = !toggle.checked;
+        toggle.disabled = true;
+
+        fetch("{% url 'consultations:toggle_availability' %}", {
+            method: "POST",
+            headers: { "X-CSRFToken": csrftoken },
+        })
+            .then(function (res) {
+                if (!res.ok) throw new Error("request failed");
+                return res.json();
+            })
+            .then(function (data) {
+                toggle.checked = data.is_available;
+                label.textContent = data.is_available ? "Disponible" : "No disponible";
+            })
+            .catch(function () {
+                toggle.checked = previous; // revertir si falla el guardado
+            })
+            .finally(function () {
+                toggle.disabled = false;
+            });
+    });
+})();
+</script>
 {% endblock %}

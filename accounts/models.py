@@ -21,6 +21,10 @@ class UserProfile(models.Model):
         related_name="profile",
     )
     role = models.CharField(max_length=20, choices=Role.choices)
+    # Solo tiene sentido para profesionales: si no está disponible, no debe
+    # ofrecerse como opción al crear consultas NUEVAS (ver
+    # ConsultationCreateForm). No afecta consultas ya creadas ni asignadas.
+    is_available = models.BooleanField("Disponible", default=True)
 
     class Meta:
         verbose_name = "Perfil de usuario"

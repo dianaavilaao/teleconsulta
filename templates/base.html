@@ -287,6 +287,39 @@
             color: var(--accent);
         }
 
+        /* --- Switch de disponibilidad --- */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 22px;
+            vertical-align: middle;
+            flex-shrink: 0;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+        .switch-track {
+            position: absolute;
+            inset: 0;
+            background: var(--border);
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+        }
+        .switch-track::before {
+            content: "";
+            position: absolute;
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            top: 3px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.15s ease;
+        }
+        .switch input:checked + .switch-track { background: var(--accent); }
+        .switch input:checked + .switch-track::before { transform: translateX(18px); }
+        .switch input:disabled + .switch-track { opacity: 0.5; cursor: not-allowed; }
+
         .empty-state { color: var(--ink-soft); font-size: 0.92rem; }
         dl.intake-data div { padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
         dl.intake-data div:last-child { border-bottom: none; }
@@ -318,7 +351,11 @@
         <a href="{% url 'consultations:home' %}" class="nav-brand">Teleconsulta</a>
         {% if user.is_authenticated %}
         <div class="nav-meta">
-            <span>{{ user.username }}{% if user.profile %} · {{ user.profile.get_role_display }}{% endif %}</span>
+            <span>{{ user.username }}{% if user.profile %} · {{ user.profile.get_role_display }}{% elif user.is_staff %} · Admin{% endif %}</span>
+            {% if user.is_staff %}
+            <a href="{% url 'consultations:panel_consultation_list' %}">Consultas</a>
+            <a href="{% url 'accounts:panel_user_list' %}">Usuarios</a>
+            {% endif %}
             <form method="post" action="{% url 'logout' %}" style="margin:0; display:inline;">
                 {% csrf_token %}
             <button type="submit" class="link-button">Cerrar sesión</button>
