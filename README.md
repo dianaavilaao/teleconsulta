@@ -28,7 +28,7 @@ python manage.py runserver      # alcanza para probar todo (WS incluido)
 ```
 
 > `runserver` en Django 5+/6 sirve ASGI automáticamente si `ASGI_APPLICATION`
-> está configurado (como es el caso acá), así que no hace falta Daphne para
+> está configurado (como es el caso aquí), así que no hace falta Daphne para
 > desarrollo. Para algo más cercano a producción: `daphne -b 0.0.0.0 -p 8000
 > config.asgi:application`.
 
@@ -85,7 +85,7 @@ python manage.py runserver      # alcanza para probar todo (WS incluido)
   - Solo el **profesional** dispara `professional_join`, `start` y `complete`
     (vía `@professional_required`).
   - Si el paciente edita su intake y deja de cumplir un requisito bloqueante
-    (ej. destilda el consentimiento), el estado retrocede a
+    (ej. desmarca el consentimiento), el estado retrocede a
     `waiting_intake` — no se permite iniciar con datos incompletos aunque
     antes haya estado "ready".
   - `start` solo es válido desde `both_present`; `complete` solo desde
@@ -102,6 +102,68 @@ python manage.py runserver      # alcanza para probar todo (WS incluido)
   pill de estado, los blockers/warnings y el estado de los botones, sin
   polling ni recarga.
 
+## Bonus 2 y 3: síntomas y briefing con IA (Groq)
+
+Dos funcionalidades opcionales que usan una API de IA gratuita ([Groq](https://groq.com),
+modelo `openai/gpt-oss-20b` — configurable en `consultations/services/ai_client.py`;
+formato compatible con OpenAI) para asistir —nunca reemplazar— el criterio clínico:
+
+- **Bonus 2 — Extracción de síntomas (paciente)**: en la sala de espera, el paciente escribe
+  su motivo de consulta en lenguaje natural y presiona **"Analizar síntomas"**. La IA sugiere
+  síntomas (guiados por un vocabulario canónico de MedlinePlus en español, ver
+  `consultations/services/symptom_vocabulary.py`) como checkboxes ya marcados, que el
+  paciente puede desmarcar o completar con **"Otro"** antes de **"Confirmar síntomas"**
+  (se guardan en `IntakeForm.symptoms`).
+- **Bonus 3 — Briefing para el profesional**: en la sala del profesional, si el paciente ya
+  confirmó síntomas, aparece **"Generar briefing"**: un resumen estructurado (síntesis,
+  temas a profundizar, preguntas sugeridas, señales de alerta, datos faltantes) armado a
+  partir del motivo, los síntomas, la edad, medicamentos y alergias. Se persiste en
+  `Consultation.ai_briefing` para no regenerarlo en cada carga de página; el profesional
+  puede pedir **"Regenerar briefing"** cuando quiera una versión nueva.
+
+### Cómo conseguir una API key gratuita
+
+1. Entrar a [console.groq.com](https://console.groq.com) y crear una cuenta (no pide tarjeta
+   de crédito).
+2. Ir a **API Keys** → **Create API Key** y copiarla.
+
+### Cómo setearla
+
+El proyecto usa `python-dotenv`: `config/settings.py` carga un archivo `.env` (en la raíz del
+repo, no versionado — ya está en `.gitignore`) al arrancar, sin pisar variables que ya estén
+seteadas en el entorno real. Ya existe un `.env` con `GROQ_API_KEY=` vacío; solo hay que
+abrirlo y completar el valor:
+
+```
+GROQ_API_KEY=tu-api-key
+```
+
+y listo, `python manage.py runserver` (o `daphne`) ya la va a ver. Alternativa sin `.env`: se
+puede exportar la variable directo en la terminal antes de levantar el servidor
+(`export GROQ_API_KEY="tu-api-key"` / en PowerShell `$env:GROQ_API_KEY = "tu-api-key"`) —
+`GROQ_API_KEY` se lee siempre con `os.environ.get` en `consultations/services/ai_client.py`,
+así que cualquiera de las dos formas funciona igual.
+
+### Limitaciones de esta parte
+
+- Depende de un servicio externo (Groq): si no hay conexión, la API está caída, o no está
+  seteada `GROQ_API_KEY`, ambas funcionalidades degradan sin romper nada — el paciente sigue
+  pudiendo guardar su intake sin síntomas etiquetados, y el profesional ve un mensaje de
+  error ("No se pudo generar el briefing, reintentar") en vez del briefing.
+- El free tier de Groq tiene rate limits razonables para desarrollo/demo, pero no pensados
+  para producción con tráfico real; un `HTTP 429` se trata como fallo recuperable (no
+  rompe la página).
+- Groq retira/renueva modelos con cierta frecuencia (ya nos pasó: `llama-3.3-70b-versatile`
+  dejó de existir y la API empezó a responder 404 `model_not_found`). Si algún día
+  `openai/gpt-oss-20b` deja de estar disponible, un `GET /v1/models` (con la key activa)
+  devuelve el catálogo vigente — solo hay que actualizar `GROQ_MODEL` en
+  `consultations/services/ai_client.py`.
+- La calidad de los síntomas detectados y del briefing depende enteramente del modelo — no
+  hay garantía de exhaustividad ni de exactitud clínica.
+- **Ninguna de las dos funcionalidades reemplaza el juicio clínico del profesional**: son
+  material de apoyo, puramente informativo/aditivo. No participan de `ReadinessService` ni
+  de `ConsultationStateMachine` (no bloquean ni habilitan ninguna transición de estado).
+
 ## Limitaciones conocidas
 
 - El channel layer usado es `InMemoryChannelLayer`: funciona perfecto para
@@ -112,9 +174,7 @@ python manage.py runserver      # alcanza para probar todo (WS incluido)
   intake (motivo, medicamentos, etc.) si el paciente los edita después de
   que el profesional ya cargó la página — sí actualiza el estado, blockers y
   warnings. Un refresh muestra los datos más recientes.
-- No se implementó ninguno de los bonuses (arquitectura/deploy, agente de
-  intake en lenguaje natural, briefing con IA para el profesional, ni
-  videollamada embebida).
+- No se implementó el bonus de arquitectura/deploy en la nube.
 - No hay tests automatizados (unit tests de `ReadinessService` y
   `ConsultationStateMachine` serían el primer paso natural dado que están
   aislados de Django).

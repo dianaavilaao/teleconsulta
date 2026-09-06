@@ -13,7 +13,7 @@ def _require_role(role):
         def wrapped(request, *args, **kwargs):
             profile = getattr(request.user, "profile", None)
             if profile is None or profile.role != role:
-                raise PermissionDenied("No tenés permiso para ver esta página.")
+                raise PermissionDenied("No tienes permiso para ver esta página.")
             return view_func(request, *args, **kwargs)
 
         return wrapped

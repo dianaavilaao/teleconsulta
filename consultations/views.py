@@ -1,15 +1,31 @@
+import json
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.views.decorators.http import require_GET, require_POST
 
 from accounts.decorators import patient_required, professional_required
 
 from .forms import IntakeSubmitForm
 from .models import Consultation, IntakeForm
+from .services.ai_client import AIServiceUnavailable
+from .services.briefing import BriefingService
 from .services.presentation import build_status_steps
 from .services.readiness import ReadinessService
 from .services.realtime import RealtimeNotifier
 from .services.state_machine import ConsultationStateMachine, InvalidTransition
+from .services.symptom_extraction import SymptomExtractionService
+from .services.symptom_vocabulary import SYMPTOM_VOCABULARY
+
+# Tope global de síntomas confirmables por intake: sugeridos por IA que
+# sigan seleccionados + agregados manualmente desde el vocabulario + "Otro"
+# (si tiene texto, cuenta 1). Se valida en confirm_symptoms (fuente de
+# verdad) y se expone a waiting_room.html para que el frontend no lo
+# duplique como número mágico.
+MAX_SYMPTOMS = 5
 
 
 def _state_machine(consultation: Consultation) -> ConsultationStateMachine:
@@ -74,9 +90,11 @@ def waiting_room(request, consultation_id):
         "consultations/waiting_room.html",
         {
             "consultation": consultation,
+            "intake": intake,
             "form": form,
             "readiness": readiness,
             "steps": build_status_steps(consultation.status),
+            "max_symptoms": MAX_SYMPTOMS,
         },
     )
 
@@ -115,4 +133,111 @@ def professional_room(request, consultation_id):
             "readiness": readiness,
             "steps": build_status_steps(consultation.status),
         },
+    )
+
+
+def _parse_json_body(request) -> dict | None:
+    try:
+        payload = json.loads(request.body)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+@patient_required
+@require_POST
+def analyze_symptoms(request, consultation_id):
+    """
+    Sugiere síntomas a partir de un texto libre (todavía no guardado en el
+    intake). No persiste nada: es la vista que dispara "Analizar síntomas".
+    """
+    get_object_or_404(Consultation, pk=consultation_id, patient=request.user)
+
+    payload = _parse_json_body(request)
+    if payload is None:
+        return JsonResponse({"error": "JSON inválido."}, status=400)
+
+    reason = (payload.get("reason") or "").strip()
+    if not reason:
+        return JsonResponse({"error": "El motivo de consulta está vacío."}, status=400)
+
+    try:
+        symptoms = SymptomExtractionService().extract(reason)
+    except AIServiceUnavailable as exc:
+        return JsonResponse({"error": str(exc)}, status=503)
+
+    return JsonResponse({"symptoms": symptoms})
+
+
+@patient_required
+@require_GET
+def symptom_vocabulary_list(request, consultation_id):
+    """
+    Lista de solo lectura de los términos canónicos de SYMPTOM_VOCABULARY,
+    para que el frontend arme el dropdown de "+ Agregar síntoma" sin
+    hardcodear el vocabulario en el template. No llama a la IA.
+    """
+    get_object_or_404(Consultation, pk=consultation_id, patient=request.user)
+    return JsonResponse({"symptoms": list(SYMPTOM_VOCABULARY.keys())})
+
+
+@patient_required
+@require_POST
+def confirm_symptoms(request, consultation_id):
+    """Guarda la lista final de síntomas (marcados + 'Otro') en el intake."""
+    consultation = get_object_or_404(Consultation, pk=consultation_id, patient=request.user)
+    intake, _ = IntakeForm.objects.get_or_create(consultation=consultation)
+
+    payload = _parse_json_body(request)
+    if payload is None:
+        return JsonResponse({"error": "JSON inválido."}, status=400)
+
+    symptoms = payload.get("symptoms")
+    if not isinstance(symptoms, list) or not all(isinstance(s, str) for s in symptoms):
+        return JsonResponse({"error": "Formato de síntomas inválido."}, status=400)
+
+    cleaned = [s.strip() for s in symptoms if s.strip()]
+    if len(cleaned) > MAX_SYMPTOMS:
+        return JsonResponse(
+            {"error": f"Máximo {MAX_SYMPTOMS} síntomas permitidos."}, status=400
+        )
+
+    intake.symptoms = cleaned
+    intake.save(update_fields=["symptoms"])
+
+    # Informativo, no es una transición de estado: no pasa por
+    # ConsultationStateMachine, se notifica directo para que el profesional
+    # vea los síntomas actualizados sin recargar.
+    RealtimeNotifier().broadcast_state(consultation)
+
+    return JsonResponse({"symptoms": intake.symptoms})
+
+
+@professional_required
+@require_POST
+def generate_briefing(request, consultation_id):
+    """Genera (o regenera) el briefing de IA y lo persiste en la consulta."""
+    consultation = get_object_or_404(
+        Consultation, pk=consultation_id, professional=request.user
+    )
+    intake = IntakeForm.objects.filter(consultation=consultation).first()
+    if not intake or not intake.symptoms:
+        return JsonResponse(
+            {"error": "El paciente todavía no confirmó síntomas."}, status=400
+        )
+
+    try:
+        briefing = BriefingService().generate(intake)
+    except AIServiceUnavailable as exc:
+        return JsonResponse({"error": str(exc)}, status=503)
+
+    consultation.ai_briefing = briefing
+    consultation.ai_briefing_generated_at = timezone.now()
+    consultation.save(update_fields=["ai_briefing", "ai_briefing_generated_at"])
+
+    return JsonResponse(
+        {
+            "briefing": briefing,
+            "generated_at": consultation.ai_briefing_generated_at.isoformat(),
+        }
     )
