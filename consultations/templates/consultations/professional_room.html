@@ -74,10 +74,19 @@
     {% else %}
     <p class="empty-state">El paciente aún no completó ningún dato.</p>
     {% endif %}
+
+    <div style="margin-top: 1rem;">
+        <h2 style="font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 0.4rem;">Síntomas confirmados</h2>
+        <div class="symptom-tags" id="professional-symptom-tags">
+            {% for symptom in intake.symptoms %}
+            <span class="symptom-tag selected" style="cursor: default;">{{ symptom }}</span>
+            {% empty %}
+            <span class="empty-state">Sin síntomas confirmados todavía.</span>
+            {% endfor %}
+        </div>
+    </div>
 </div>
 
-<<<<<<< Updated upstream
-=======
 <div class="panel">
     <h2 style="margin-bottom: 0.75rem;">Briefing con IA</h2>
     {% if not intake or not intake.symptoms %}
@@ -119,7 +128,6 @@
 {% if consultation.ai_briefing %}{{ consultation.ai_briefing|json_script:"initial-briefing" }}{% endif %}
 
 {% if consultation.status != 'completed' %}
->>>>>>> Stashed changes
 <form method="post" style="margin-top: 1.25rem; display: flex; gap: 0.75rem;">
     {% csrf_token %}
     <button type="submit" name="action" value="start" id="start-btn" class="btn btn-primary"
@@ -173,6 +181,29 @@
         });
     }
 
+    // Solo lectura: sin checkbox, sin click, sin toggle — es solo informativo.
+    function renderProfessionalSymptoms(symptoms) {
+        const container = document.getElementById("professional-symptom-tags");
+        if (!container) return;
+
+        container.innerHTML = "";
+        if (!symptoms.length) {
+            const empty = document.createElement("span");
+            empty.className = "empty-state";
+            empty.textContent = "Sin síntomas confirmados todavía.";
+            container.appendChild(empty);
+            return;
+        }
+
+        symptoms.forEach(function (symptom) {
+            const tag = document.createElement("span");
+            tag.className = "symptom-tag selected";
+            tag.style.cursor = "default";
+            tag.textContent = symptom; // dato del paciente: textContent, nunca innerHTML
+            container.appendChild(tag);
+        });
+    }
+
     socket.onmessage = function (event) {
         const data = JSON.parse(event.data);
 
@@ -193,6 +224,8 @@
             endVideoCall();
         }
 
+        if (data.symptoms) renderProfessionalSymptoms(data.symptoms);
+
         if (data.readiness) {
             document.getElementById("alert-list").innerHTML =
                 data.readiness.blockers.map(b => `<li class="alert-item blocker">${b}</li>`)
@@ -202,8 +235,6 @@
     };
 })();
 </script>
-<<<<<<< Updated upstream
-=======
 
 <script>
 (function () {
@@ -284,5 +315,4 @@
     });
 })();
 </script>
->>>>>>> Stashed changes
 {% endblock %}

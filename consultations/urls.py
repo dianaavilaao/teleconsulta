@@ -13,24 +13,24 @@ urlpatterns = [
         name="patient_history_detail",
     ),
     path("paciente/<int:consultation_id>/", views.waiting_room, name="waiting_room"),
-<<<<<<< Updated upstream
-=======
     path(
         "paciente/<int:consultation_id>/analizar-sintomas/",
         views.analyze_symptoms,
         name="analyze_symptoms",
     ),
     path(
+        "paciente/<int:consultation_id>/confirmar-sintomas/",
+        views.confirm_symptoms,
+        name="confirm_symptoms",
+    ),
+    path(
         "paciente/<int:consultation_id>/vocabulario-sintomas/",
         views.symptom_vocabulary_list,
         name="symptom_vocabulary_list",
     ),
->>>>>>> Stashed changes
     path("profesional/", views.professional_list, name="professional_list"),
     path("profesional/disponibilidad/", views.toggle_availability, name="toggle_availability"),
     path("profesional/<int:consultation_id>/", views.professional_room, name="professional_room"),
-<<<<<<< Updated upstream
-=======
     path(
         "profesional/<int:consultation_id>/generar-briefing/",
         views.generate_briefing,
@@ -47,5 +47,4 @@ urlpatterns = [
         views.panel_consultation_create,
         name="panel_consultation_create",
     ),
->>>>>>> Stashed changes
 ]

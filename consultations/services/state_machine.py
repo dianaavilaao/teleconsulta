@@ -2,7 +2,7 @@
 Máquina de estados de la Consultation.
 
 Regla de oro del proyecto: ninguna vista escribe `consultation.status`
-directamente. Todas las transiciones pasan por acá, así:
+directamente. Todas las transiciones pasan por aquí, así:
 
 - Queda un único lugar que conoce las reglas ("¿quién puede hacer qué,
   y cuándo?").

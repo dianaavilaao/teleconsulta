@@ -27,8 +27,6 @@
 <div class="panel">
     <form method="post">
         {% csrf_token %}
-<<<<<<< Updated upstream
-=======
 
         <div class="field">
             <label for="{{ form.reason.id_for_label }}">{{ form.reason.label }}</label>
@@ -68,8 +66,8 @@
             <input type="hidden" name="symptoms" id="symptoms-hidden-input" value="[]">
         </div>
 
->>>>>>> Stashed changes
         {% for field in form %}
+        {% if field.name != "reason" %}
         <div class="field">
             {% if field.name == "consent_given" %}
             <div class="checkbox-row">
@@ -82,10 +80,14 @@
             {% endif %}
             {% if field.errors %}<p style="color: var(--blocker); font-size: 0.8rem; margin-top: 0.25rem;">{{ field.errors|striptags }}</p>{% endif %}
         </div>
+        {% endif %}
         {% endfor %}
+
         <button type="submit" class="btn btn-primary">Guardar información</button>
     </form>
 </div>
+
+{{ intake.symptoms|json_script:"initial-symptoms" }}
 
 <script src="https://meet.jit.si/external_api.js"></script>
 <script>
@@ -150,8 +152,6 @@
     };
 })();
 </script>
-<<<<<<< Updated upstream
-=======
 
 <script>
 (function () {
@@ -415,5 +415,4 @@
     });
 })();
 </script>
->>>>>>> Stashed changes
 {% endblock %}
