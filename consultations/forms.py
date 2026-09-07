@@ -3,6 +3,7 @@ from django import forms
 from accounts.models import UserProfile
 from .models import Consultation, IntakeForm
 from .services.eligibility import UnderageError, validate_patient_age
+from .services.scheduling import SchedulingConflict, assert_no_scheduling_conflict
 
 
 class ConsultationCreateForm(forms.ModelForm):
@@ -36,6 +37,23 @@ class ConsultationCreateForm(forms.ModelForm):
             profile__is_available=True,
         )
         self.fields["professional"].empty_label = "Selecciona un profesional"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        patient = cleaned_data.get("patient")
+        professional = cleaned_data.get("professional")
+        scheduled_at = cleaned_data.get("scheduled_at")
+
+        # Solo tiene sentido chequear el choque de horario si los tres
+        # campos ya son válidos por su cuenta (si alguno falló, ya hay un
+        # error de campo y no hace falta agregar ruido acá).
+        if patient and professional and scheduled_at:
+            try:
+                assert_no_scheduling_conflict(patient, professional, scheduled_at)
+            except SchedulingConflict as exc:
+                raise forms.ValidationError(str(exc))
+
+        return cleaned_data
 
 
 class IntakeSubmitForm(forms.ModelForm):
