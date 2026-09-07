@@ -4,7 +4,7 @@ su fecha de nacimiento.
 
 Mismo patrón que `state_machine.py` (`InvalidTransition`) y
 `diagnosis.py` (`DiagnosisNotAllowed`): la regla de negocio ("¿el paciente
-es mayor de edad?") vive acá, no en el form ni en las vistas. El form
+es mayor de edad?") vive aquí, no en el form ni en las vistas. El form
 (`IntakeSubmitForm.clean_birth_date`) solo llama a `validate_patient_age`
 y traduce la excepción de dominio a un error de formulario.
 """

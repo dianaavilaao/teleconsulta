@@ -17,7 +17,7 @@
 <div class="panel">
     <h2 style="margin-bottom: 0.75rem;">Diagnóstico</h2>
     <p class="empty-state" style="margin-bottom: 0.75rem;">
-        Registro interno: el paciente nunca ve esta información. Es opcional, dejalo vacío
+        Registro interno: el paciente nunca ve esta información. Es opcional, déjalo vacío
         si no aplica un diagnóstico formal para esta consulta.
     </p>
     <form method="post" action="{% url 'consultations:save_diagnosis' consultation.id %}">
@@ -40,6 +40,30 @@
         <div class="field" id="follow-up-notes-field" {% if not diagnosis.follow_up_needed %}style="display: none;"{% endif %}>
             <label for="id_follow_up_notes">Notas de seguimiento</label>
             <textarea name="follow_up_notes" id="id_follow_up_notes" rows="2">{{ diagnosis.follow_up_notes|default:"" }}</textarea>
+        </div>
+        <div class="field">
+            <label>Sobre la sesión</label>
+            <p class="empty-state" style="margin: 0.25rem 0 0.5rem;">¿Hubo problemas de conexión?</p>
+            <div class="checkbox-row" style="margin-bottom: 0.4rem;">
+                <input type="radio" name="connection_issues" id="id_connection_issues_none" value="none"
+                    {% if diagnosis.connection_issues == "none" or not diagnosis %}checked{% endif %}>
+                <label for="id_connection_issues_none">No hubo problemas de conexión</label>
+            </div>
+            <div class="checkbox-row" style="margin-bottom: 0.4rem;">
+                <input type="radio" name="connection_issues" id="id_connection_issues_patient" value="patient"
+                    {% if diagnosis.connection_issues == "patient" %}checked{% endif %}>
+                <label for="id_connection_issues_patient">Sí, por parte del paciente</label>
+            </div>
+            <div class="checkbox-row" style="margin-bottom: 0.4rem;">
+                <input type="radio" name="connection_issues" id="id_connection_issues_professional" value="professional"
+                    {% if diagnosis.connection_issues == "professional" %}checked{% endif %}>
+                <label for="id_connection_issues_professional">Sí, por parte del profesional</label>
+            </div>
+            <div class="checkbox-row" style="margin-bottom: 0.4rem;">
+                <input type="radio" name="connection_issues" id="id_connection_issues_both" value="both"
+                    {% if diagnosis.connection_issues == "both" %}checked{% endif %}>
+                <label for="id_connection_issues_both">Sí, por ambas partes</label>
+            </div>
         </div>
         <button type="submit" class="btn btn-primary">Guardar diagnóstico</button>
     </form>

@@ -16,23 +16,29 @@ from .ai_client import AIServiceUnavailable, GroqClient
 
 _JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
 
-_SYSTEM_PROMPT = """Eres un asistente clínico que prepara un briefing breve para un profesional \
+# Tope de preguntas sugeridas: se le pide al modelo en el prompt, pero
+# además se recorta en _parse (defensa en profundidad, igual criterio que
+# MAX_SYMPTOMS en symptom_confirmation.py) por si no lo respeta.
+MAX_SUGGESTED_QUESTIONS = 3
+
+_SYSTEM_PROMPT = f"""Eres un asistente clínico que prepara un briefing breve para un profesional \
 de la salud antes de una teleconsulta, a partir de los datos que cargó el paciente. Responde en \
 español.
 
 Devuelve SOLO un JSON válido, sin texto adicional, con esta forma exacta:
-{
+{{
   "summary": "síntesis breve del caso en 2-3 líneas",
   "topics_to_explore": ["tema a profundizar en la anamnesis 1", "..."],
   "suggested_questions": ["pregunta sugerida 1", "..."],
   "warning_signs": ["posible señal de alerta a explorar 1", "..."],
   "missing_or_inconsistent_data": ["dato faltante o inconsistente 1", "..."]
-}
+}}
 
 Básate únicamente en los datos provistos, no inventes información. Si un dato relevante (fecha \
 de nacimiento/edad, medicamentos, alergias) no fue informado, menciónalo en \
-"missing_or_inconsistent_data". Este briefing es material de apoyo: nunca reemplaza el juicio \
-clínico del profesional.
+"missing_or_inconsistent_data". "suggested_questions" debe tener como máximo \
+{MAX_SUGGESTED_QUESTIONS} preguntas — las más relevantes, no una lista exhaustiva. Este \
+briefing es material de apoyo: nunca reemplaza el juicio clínico del profesional.
 """
 
 
@@ -78,4 +84,6 @@ class BriefingService:
         for key in list_keys:
             value = parsed.get(key)
             result[key] = [str(v).strip() for v in value if str(v).strip()] if isinstance(value, list) else []
+
+        result["suggested_questions"] = result["suggested_questions"][:MAX_SUGGESTED_QUESTIONS]
         return result

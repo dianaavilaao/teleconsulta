@@ -10,7 +10,7 @@ from .services.user_management import ROLE_CHOICES
 class SignupForm(UserCreationForm):
     """
     Alta pública de cuenta (paciente o profesional). El rol "admin" no es
-    una opción acá a propósito: se sigue reservando a `user.is_staff`,
+    una opción aquí a propósito: se sigue reservando a `user.is_staff`,
     otorgado solo desde el Django Admin — no es algo que alguien deba
     poder autoasignarse desde un formulario público.
     """

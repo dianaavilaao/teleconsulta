@@ -121,6 +121,12 @@ class Diagnosis(models.Model):
     RealtimeNotifier ni se expone en ninguna vista con @patient_required.
     """
 
+    class ConnectionIssues(models.TextChoices):
+        NONE = "none", "No hubo problemas de conexión"
+        PATIENT = "patient", "Sí, por parte del paciente"
+        PROFESSIONAL = "professional", "Sí, por parte del profesional"
+        BOTH = "both", "Sí, por ambas partes"
+
     consultation = models.OneToOneField(
         Consultation, on_delete=models.CASCADE, related_name="diagnosis"
     )
@@ -128,6 +134,16 @@ class Diagnosis(models.Model):
     recommendations = models.TextField("Recomendaciones", blank=True)
     follow_up_needed = models.BooleanField("Requiere seguimiento", default=False)
     follow_up_notes = models.TextField("Notas de seguimiento", blank=True)
+    # Control de sesión ("Sobre la sesión" en el form): a diferencia del
+    # resto de Diagnosis (que es 100% privado), esto sí lo ve el admin en
+    # su panel — es información operativa (¿hay que revisar la
+    # infraestructura de videollamada?), no clínica.
+    connection_issues = models.CharField(
+        "¿Hubo problemas de conexión?",
+        max_length=20,
+        choices=ConnectionIssues.choices,
+        default=ConnectionIssues.NONE,
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

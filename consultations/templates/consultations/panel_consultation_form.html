@@ -6,6 +6,9 @@
 <div class="panel">
     <form method="post">
         {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="flash flash-error">{{ form.non_field_errors|striptags }}</div>
+        {% endif %}
         {% for field in form %}
         <div class="field">
             <label for="{{ field.id_for_label }}">{{ field.label }}</label>

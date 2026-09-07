@@ -4,7 +4,7 @@ propio (/panel/usuarios/), que reemplaza al Django Admin (ver
 consultations/admin.py y accounts/admin.py).
 
 Se separa de las vistas por el mismo criterio que el resto del proyecto:
-acá vive la regla de "qué significa cada rol" — admin es `is_staff` sin
+aquí vive la regla de "qué significa cada rol" — admin es `is_staff` sin
 UserProfile; paciente/profesional es un UserProfile con ese `role`. La
 vista solo arma el formulario y llama a estas funciones.
 """

@@ -18,22 +18,19 @@ from .services.presentation import build_status_steps
 from .services.readiness import ReadinessService
 from .services.realtime import RealtimeNotifier
 from .services.state_machine import ConsultationStateMachine, InvalidTransition
+from .services.symptom_confirmation import MAX_SYMPTOMS, validate_symptoms
 from .services.symptom_extraction import SymptomExtractionService
 from .services.symptom_vocabulary import SYMPTOM_VOCABULARY
-
-# Tope global de síntomas confirmables por intake: sugeridos por IA que
-# sigan seleccionados + agregados manualmente desde el vocabulario + "Otro"
-# (si tiene texto, cuenta 1). Se valida en waiting_room (fuente de verdad)
-# y se expone al template para que el frontend no lo duplique como número mágico.
-MAX_SYMPTOMS = 5
 
 
 def _parse_symptoms_field(raw: str | None) -> tuple[list[str], str | None]:
     """
-    Parsea el campo oculto "symptoms" (JSON armado por el JS de
-    waiting_room.html a partir de las etiquetas seleccionadas) que viaja
-    junto con el resto del intake en un único POST. Devuelve
-    (lista_limpia, error) — si hay error, el llamador no debe guardar nada.
+    Parsea el campo oculto "symptoms_json" (JSON armado por el JS de
+    waiting_room.html a partir del popover de síntomas) que viaja junto
+    con el resto del intake en un único POST, y reusa la misma validación
+    (tope de MAX_SYMPTOMS, etc.) que el endpoint standalone
+    confirm_symptoms — ver services/symptom_confirmation.py. Devuelve
+    (lista_limpia, error): si hay error, el llamador no debe guardar nada.
     """
     if not raw:
         return [], None
@@ -43,14 +40,7 @@ def _parse_symptoms_field(raw: str | None) -> tuple[list[str], str | None]:
     except (json.JSONDecodeError, TypeError):
         return [], "No se pudo interpretar la lista de síntomas."
 
-    if not isinstance(parsed, list) or not all(isinstance(s, str) for s in parsed):
-        return [], "Formato de síntomas inválido."
-
-    cleaned = [s.strip() for s in parsed if s.strip()]
-    if len(cleaned) > MAX_SYMPTOMS:
-        return [], f"Máximo {MAX_SYMPTOMS} síntomas permitidos."
-
-    return cleaned, None
+    return validate_symptoms(parsed)
 
 
 def _state_machine(consultation: Consultation) -> ConsultationStateMachine:
@@ -142,7 +132,7 @@ def waiting_room(request, consultation_id):
             return redirect("consultations:waiting_room", consultation_id=consultation.id)
 
         form = IntakeSubmitForm(request.POST, instance=intake)
-        symptoms, symptoms_error = _parse_symptoms_field(request.POST.get("symptoms"))
+        symptoms, symptoms_error = _parse_symptoms_field(request.POST.get("symptoms_json"))
         if symptoms_error:
             messages.error(request, symptoms_error)
         elif form.is_valid():
@@ -263,7 +253,13 @@ def symptom_vocabulary_list(request, consultation_id):
 @patient_required
 @require_POST
 def confirm_symptoms(request, consultation_id):
-    """Guarda la lista final de síntomas (marcados + 'Otro') en el intake."""
+    """
+    Guarda la lista final de síntomas (marcados + 'Otro') en el intake.
+    Ya no lo usa el frontend (el flujo nuevo guarda los síntomas junto con
+    el resto del intake en un único POST, ver waiting_room), pero se deja
+    activo por compatibilidad. Reusa validate_symptoms — no duplica la
+    regla del tope de MAX_SYMPTOMS.
+    """
     consultation = get_object_or_404(Consultation, pk=consultation_id, patient=request.user)
     intake, _ = IntakeForm.objects.get_or_create(consultation=consultation)
 
@@ -271,15 +267,9 @@ def confirm_symptoms(request, consultation_id):
     if payload is None:
         return JsonResponse({"error": "JSON inválido."}, status=400)
 
-    symptoms = payload.get("symptoms")
-    if not isinstance(symptoms, list) or not all(isinstance(s, str) for s in symptoms):
-        return JsonResponse({"error": "Formato de síntomas inválido."}, status=400)
-
-    cleaned = [s.strip() for s in symptoms if s.strip()]
-    if len(cleaned) > MAX_SYMPTOMS:
-        return JsonResponse(
-            {"error": f"Máximo {MAX_SYMPTOMS} síntomas permitidos."}, status=400
-        )
+    cleaned, error = validate_symptoms(payload.get("symptoms"))
+    if error:
+        return JsonResponse({"error": error}, status=400)
 
     intake.symptoms = cleaned
     intake.save(update_fields=["symptoms"])
@@ -339,16 +329,17 @@ def save_diagnosis(request, consultation_id):
         "recommendations": request.POST.get("recommendations", ""),
         "follow_up_needed": request.POST.get("follow_up_needed") == "on",
         "follow_up_notes": request.POST.get("follow_up_notes", ""),
+        "connection_issues": request.POST.get("connection_issues", ""),
     }
 
     try:
         DiagnosisService.save(consultation, request.user, data)
     except DiagnosisNotAllowed as exc:
         messages.error(request, str(exc))
-    else:
-        messages.success(request, "Diagnóstico guardado.")
+        return redirect("consultations:professional_room", consultation_id=consultation.id)
 
-    return redirect("consultations:professional_room", consultation_id=consultation.id)
+    messages.success(request, "Diagnóstico guardado.")
+    return redirect("consultations:professional_list")
 
 
 # ---- Panel de administración (reemplaza a Django Admin, ver Tarea 2/3) -----
@@ -356,7 +347,7 @@ def save_diagnosis(request, consultation_id):
 
 @staff_required
 def panel_consultation_list(request):
-    consultations = Consultation.objects.select_related("patient", "professional")
+    consultations = Consultation.objects.select_related("patient", "professional", "diagnosis")
     return render(
         request,
         "consultations/panel_consultation_list.html",

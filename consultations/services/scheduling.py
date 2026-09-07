@@ -2,10 +2,10 @@
 Servicio de dominio para evitar choques de horario al agendar una
 consulta. Mismo patrón que `diagnosis.py`/`eligibility.py`: la regla
 ("nadie puede tener dos consultas dentro de la misma ventana de
-exclusividad") vive acá, no en el form.
+exclusividad") vive aquí, no en el form.
 
 `CONSULTATION_DURATION_MINUTES` se comparte con el Cambio 3 (ventana de
-intake) — no lo dupliques, importalo desde acá.
+intake) — no lo dupliques, impórtalo desde aquí.
 """
 
 from __future__ import annotations

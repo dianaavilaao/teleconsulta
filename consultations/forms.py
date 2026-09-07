@@ -46,7 +46,7 @@ class ConsultationCreateForm(forms.ModelForm):
 
         # Solo tiene sentido chequear el choque de horario si los tres
         # campos ya son válidos por su cuenta (si alguno falló, ya hay un
-        # error de campo y no hace falta agregar ruido acá).
+        # error de campo y no hace falta agregar ruido aquí).
         if patient and professional and scheduled_at:
             try:
                 assert_no_scheduling_conflict(patient, professional, scheduled_at)
@@ -81,7 +81,7 @@ class IntakeSubmitForm(forms.ModelForm):
 
     def clean_birth_date(self):
         birth_date = self.cleaned_data.get("birth_date")
-        # Vacío no es error acá: ReadinessService ya lo trata como warning
+        # Vacío no es error aquí: ReadinessService ya lo trata como warning
         # (no bloqueante), y esa regla no se toca ni se duplica.
         if not birth_date:
             return birth_date
@@ -90,7 +90,7 @@ class IntakeSubmitForm(forms.ModelForm):
             validate_patient_age(birth_date)
         except UnderageError:
             raise forms.ValidationError(
-                "Debés ingresar una fecha de nacimiento correspondiente a una persona mayor de 18 años."
+                "Debes ingresar una fecha de nacimiento correspondiente a una persona mayor de 18 años."
             )
 
         return birth_date

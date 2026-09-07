@@ -24,11 +24,17 @@
     </p>
 </div>
 
-{% if consultation.status == 'in_progress' or consultation.status == 'completed' %}
+{% if consultation.status != 'scheduled' and consultation.status != 'waiting_intake' %}
 <div class="panel">
     <h2 style="margin-bottom: 0.75rem;">Tu información</h2>
     <p class="empty-state" style="margin-bottom: 0.75rem;">
-        Ya quedó guardada — no se puede editar una vez iniciada la consulta.
+        {% if consultation.status == 'completed' %}
+        La consulta ya finalizó.
+        {% elif consultation.status == 'in_progress' %}
+        La consulta está en curso.
+        {% else %}
+        Ya quedó guardada. Vas a poder unirte a la videollamada cuando el profesional inicie la consulta.
+        {% endif %}
     </p>
     {% if intake %}
     <dl class="intake-data">
@@ -55,7 +61,7 @@
 </div>
 {% else %}
 <div class="panel">
-    <form method="post">
+    <form method="post" id="intake-form">
         {% csrf_token %}
 
         <div class="field">
@@ -64,37 +70,10 @@
             {% if form.reason.errors %}<p style="color: var(--blocker); font-size: 0.8rem; margin-top: 0.25rem;">{{ form.reason.errors|striptags }}</p>{% endif %}
         </div>
 
-        <div class="field">
-            <button type="button" id="analyze-symptoms-btn" class="btn btn-secondary">Analizar síntomas</button>
-            <span id="symptoms-status" class="empty-state" style="margin-left: 0.5rem;"></span>
-
-            <div class="symptom-tags" id="symptom-tags" style="margin-top: 0.75rem;">
-                <span id="ai-symptom-tags" style="display: contents;"></span>
-                <label class="symptom-tag" id="symptom-other-tag">
-                    <input type="checkbox" id="symptom-other-checkbox">
-                    <span>Otro</span>
-                </label>
-            </div>
-            <input type="text" id="symptom-other-text" class="hidden"
-                placeholder="Describe el síntoma" style="margin-top: 0.6rem;">
-
-            <div style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
-                <button type="button" id="add-symptom-btn" class="btn btn-secondary">+ Agregar síntoma</button>
-                <select id="add-symptom-select" class="hidden" style="max-width: 220px;"></select>
-                <span id="symptoms-counter" class="empty-state">0/{{ max_symptoms }}</span>
-                <span id="symptoms-limit-msg" class="empty-state hidden" style="color: var(--warning);">
-                    Máximo {{ max_symptoms }} síntomas
-                </span>
-            </div>
-            <p class="empty-state" style="margin-top: 0.5rem;">
-                Los síntomas que dejes marcados se guardan junto con el resto de la información.
-            </p>
-
-            <!-- Estado real de la selección: se sincroniza en cada cambio (ver
-                 syncSymptomsField en el script de abajo) y viaja con el resto
-                 del formulario al apretar "Guardar información". -->
-            <input type="hidden" name="symptoms" id="symptoms-hidden-input" value="[]">
-        </div>
+        <!-- Estado real de la selección de síntomas (armada en el popover que
+             se abre al presionar "Guardar información", ver el script de
+             abajo) — viaja con el resto del formulario en el mismo POST. -->
+        <input type="hidden" name="symptoms_json" id="id_symptoms_json" value="[]">
 
         {% for field in form %}
         {% if field.name != "reason" %}
@@ -117,7 +96,42 @@
     </form>
 </div>
 
-{{ intake.symptoms|json_script:"initial-symptoms" }}
+<!-- Popover de síntomas: se abre al presionar "Guardar información" (ver
+     script más abajo). Vive fuera del <form> a propósito — es un diálogo,
+     no parte del formulario — salvo el hidden input de más arriba, que sí
+     necesita estar dentro para viajar en el POST. -->
+<div id="symptom-popover-overlay" class="popover-overlay hidden">
+    <div class="panel popover-box" id="symptom-popover-box" role="dialog" aria-modal="true" aria-labelledby="symptom-popover-title" tabindex="-1">
+        <p id="symptom-popover-title" style="font-weight: 500; margin-bottom: 0.75rem;">
+            Estos son los síntomas que experimenta
+        </p>
+        <p id="symptom-popover-status" class="empty-state hidden" style="margin-bottom: 0.75rem;"></p>
+
+        <div class="symptom-tags" id="symptom-tags">
+            <span id="ai-symptom-tags" style="display: contents;"></span>
+            <label class="symptom-tag" id="symptom-other-tag">
+                <input type="checkbox" id="symptom-other-checkbox">
+                <span>Otro</span>
+            </label>
+        </div>
+        <input type="text" id="symptom-other-text" class="hidden"
+            placeholder="Describe el síntoma" style="margin-top: 0.6rem;">
+
+        <div style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+            <button type="button" id="add-symptom-btn" class="btn btn-secondary">+ Agregar síntoma</button>
+            <select id="add-symptom-select" class="hidden" style="max-width: 220px;"></select>
+            <span id="symptoms-counter" class="empty-state">0/{{ max_symptoms }}</span>
+            <span id="symptoms-limit-msg" class="empty-state hidden" style="color: var(--warning);">
+                Máximo {{ max_symptoms }} síntomas
+            </span>
+        </div>
+
+        <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 0.75rem;">
+            <button type="button" id="symptom-popover-cancel" class="btn btn-secondary">Cancelar</button>
+            <button type="button" id="symptom-popover-continue" class="btn btn-primary">Continuar</button>
+        </div>
+    </div>
+</div>
 {% endif %}
 
 </div>
@@ -159,8 +173,7 @@
         document.getElementById("video-panel").classList.add("hidden");
     }
 
-    let currentStatus = "{{ consultation.status }}";
-    if (currentStatus === "in_progress") startVideoCall();
+    if ("{{ consultation.status }}" === "in_progress") startVideoCall();
 
     function updateStepper(steps) {
         steps.forEach(function (step) {
@@ -171,16 +184,6 @@
 
     socket.onmessage = function (event) {
         const data = JSON.parse(event.data);
-
-        // Al pasar a "en curso" el formulario de intake deja de mostrarse
-        // (queda como resumen de solo lectura, ver el template). En vez de
-        // duplicar esa lógica acá con datos parciales, recargamos una sola
-        // vez para que el servidor arme la página correcta.
-        if (data.status === "in_progress" && currentStatus !== "in_progress") {
-            window.location.reload();
-            return;
-        }
-        currentStatus = data.status;
 
         document.getElementById("professional-banner").classList.toggle("hidden", !data.professional_joined);
 
@@ -203,16 +206,19 @@
 })();
 </script>
 
-{% if consultation.status != 'in_progress' and consultation.status != 'completed' %}
+{% if consultation.status == 'scheduled' or consultation.status == 'waiting_intake' %}
 <script>
 (function () {
     const MAX_SYMPTOMS = {{ max_symptoms }};
     const consultationId = {{ consultation.id }};
     const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]").value;
     const reasonField = document.getElementById("{{ form.reason.id_for_label }}");
+    const form = document.getElementById("intake-form");
+    const hiddenInput = document.getElementById("id_symptoms_json");
 
-    const analyzeBtn = document.getElementById("analyze-symptoms-btn");
-    const statusEl = document.getElementById("symptoms-status");
+    const overlay = document.getElementById("symptom-popover-overlay");
+    const popoverBox = document.getElementById("symptom-popover-box");
+    const popoverStatus = document.getElementById("symptom-popover-status");
     const aiTagsContainer = document.getElementById("ai-symptom-tags");
     const otherTag = document.getElementById("symptom-other-tag");
     const otherCheckbox = document.getElementById("symptom-other-checkbox");
@@ -221,10 +227,12 @@
     const addSymptomSelect = document.getElementById("add-symptom-select");
     const counterEl = document.getElementById("symptoms-counter");
     const limitMsgEl = document.getElementById("symptoms-limit-msg");
-    const hiddenInput = document.getElementById("symptoms-hidden-input");
+    const cancelBtn = document.getElementById("symptom-popover-cancel");
+    const continueBtn = document.getElementById("symptom-popover-continue");
 
     let tagIdCounter = 0;
     let vocabularyTerms = null; // se pide una sola vez a /vocabulario-sintomas/
+    let lastFocusedBeforePopover = null;
 
     function countSelected() {
         const tagCount = document.querySelectorAll(".symptom-checkbox:checked").length;
@@ -232,9 +240,9 @@
         return tagCount + otherCount;
     }
 
-    // No hay botón de "confirmar": el estado real de la selección viaja en
-    // este input oculto, que se manda junto con el resto del intake al
-    // apretar "Guardar información" (ver el submit del <form> más abajo).
+    // El estado real de la selección viaja en este input oculto (dentro del
+    // <form>, aunque el popover que lo arma vive fuera de él), que se manda
+    // junto con el resto del intake recién cuando se presiona "Continuar".
     function syncSymptomsField() {
         const selected = Array.from(document.querySelectorAll(".symptom-checkbox:checked")).map(
             function (cb) {
@@ -266,10 +274,10 @@
     // que alterna un checkbox oculto adentro — el estado real que se manda
     // al backend (hiddenInput, vía syncSymptomsField) no cambia, solo cómo se ve.
     //
-    // Semántica de click pedida: tocar una etiqueta YA seleccionada la saca
-    // por completo de la lista (no la deja en gris). Tocar una etiqueta
-    // visible pero no seleccionada (solo pasa si la IA sugirió más de
-    // MAX_SYMPTOMS de una vez) la selecciona, salvo que ya se llegó al tope.
+    // Semántica de click: tocar una etiqueta YA seleccionada la saca por
+    // completo de la lista (no la deja en gris). Tocar una etiqueta visible
+    // pero no seleccionada (solo pasa si la IA sugirió más de MAX_SYMPTOMS
+    // de una vez) la selecciona, salvo que ya se llegó al tope.
     function createSymptomTag(symptom, checked) {
         const tag = document.createElement("label");
         tag.className = "symptom-tag" + (checked ? " selected" : "");
@@ -302,34 +310,38 @@
         return tag;
     }
 
-    function renderTags(symptoms, checkedSet) {
+    function renderTags(symptoms) {
         aiTagsContainer.innerHTML = "";
         let selectedSoFar = 0;
         symptoms.forEach(function (symptom) {
-            let checked;
-            if (checkedSet) {
-                checked = checkedSet.has(symptom);
-            } else {
-                // La IA puede sugerir más de MAX_SYMPTOMS: solo las primeras
-                // quedan preseleccionadas, el resto se ve pero no cuenta.
-                checked = selectedSoFar < MAX_SYMPTOMS;
-            }
+            // Todas llegan preseleccionadas (pedido explícito); si la IA
+            // sugiere más de MAX_SYMPTOMS, las que exceden el tope quedan
+            // visibles pero no marcadas.
+            const checked = selectedSoFar < MAX_SYMPTOMS;
             if (checked) selectedSoFar++;
             aiTagsContainer.appendChild(createSymptomTag(symptom, checked));
         });
         refreshLimitState();
     }
 
-    // Precarga síntomas ya confirmados en una visita anterior, sin llamar a la IA.
-    try {
-        const initial = JSON.parse(document.getElementById("initial-symptoms").textContent);
-        if (initial && initial.length) {
-            renderTags(initial, new Set(initial));
-        }
-    } catch (e) {
-        /* no-op: sin síntomas previos */
+    // Vuelve el popover a su estado inicial antes de cada apertura (no debe
+    // arrastrar la selección de un intento anterior en la misma visita).
+    function resetPopoverState() {
+        aiTagsContainer.innerHTML = "";
+        otherCheckbox.checked = false;
+        otherCheckbox.disabled = false;
+        otherTag.classList.remove("selected");
+        otherText.value = "";
+        otherText.classList.add("hidden");
+        popoverStatus.classList.add("hidden");
+        popoverStatus.textContent = "";
+        refreshLimitState();
     }
-    refreshLimitState();
+
+    function showPopoverMessage(message) {
+        popoverStatus.textContent = message;
+        popoverStatus.classList.remove("hidden");
+    }
 
     otherCheckbox.addEventListener("change", function () {
         if (otherCheckbox.checked && countSelected() > MAX_SYMPTOMS) {
@@ -342,15 +354,8 @@
         refreshLimitState();
     });
 
-    // "Otro" solo cuenta para el tope cuando tiene texto: recalculá al tipear.
+    // "Otro" solo cuenta para el tope cuando tiene texto: recalcula al tipear.
     otherText.addEventListener("input", refreshLimitState);
-
-    // El tag "Otro" y su input comparten <form> con el resto del intake (para
-    // que "Guardar información" siga mandando todo junto); sin este guard,
-    // Enter en el input de texto libre dispararía el submit del formulario.
-    otherText.addEventListener("keydown", function (event) {
-        if (event.key === "Enter") event.preventDefault();
-    });
 
     function currentSymptomTexts() {
         return new Set(Array.from(document.querySelectorAll(".symptom-checkbox")).map(function (cb) {
@@ -403,7 +408,7 @@
                 populateAddSymptomSelect();
             })
             .catch(function () {
-                statusEl.textContent = "No se pudo cargar la lista de síntomas.";
+                showPopoverMessage("No se pudo cargar la lista de síntomas.");
             })
             .finally(function () {
                 addSymptomBtn.disabled = countSelected() >= MAX_SYMPTOMS;
@@ -424,15 +429,60 @@
         refreshLimitState();
     });
 
-    analyzeBtn.addEventListener("click", function () {
+    // ---- Abrir / cerrar el popover ----
+
+    function onPopoverKeydown(event) {
+        if (event.key === "Escape") {
+            event.preventDefault();
+            closePopover();
+        }
+    }
+
+    function openPopover() {
+        lastFocusedBeforePopover = document.activeElement;
+        overlay.classList.remove("hidden");
+        popoverBox.focus();
+        document.addEventListener("keydown", onPopoverKeydown);
+    }
+
+    function closePopover() {
+        overlay.classList.add("hidden");
+        document.removeEventListener("keydown", onPopoverKeydown);
+        if (lastFocusedBeforePopover) lastFocusedBeforePopover.focus();
+    }
+
+    cancelBtn.addEventListener("click", closePopover);
+
+    continueBtn.addEventListener("click", function () {
+        syncSymptomsField();
+        closePopover();
+        form.submit(); // envío nativo: no vuelve a disparar el listener de "submit" de abajo
+    });
+
+    // ---- Interceptar "Guardar información" ----
+
+    form.addEventListener("submit", function (event) {
+        // Validación nativa primero: si falta algo básico, dejamos que el
+        // navegador muestre sus propios mensajes y no avanzamos.
+        if (!form.reportValidity()) {
+            return;
+        }
+        event.preventDefault();
+
+        resetPopoverState();
+        openPopover();
+
         const reason = reasonField ? reasonField.value.trim() : "";
         if (!reason) {
-            statusEl.textContent = "Escribe primero el motivo de consulta.";
+            // No tiene sentido llamar a la IA con un motivo vacío: el
+            // popover se abre directo en el estado "sin sugerencias".
+            showPopoverMessage(
+                "No fue posible sugerir síntomas de forma automática. Puedes agregarlos manualmente si lo deseas."
+            );
             return;
         }
 
-        analyzeBtn.disabled = true;
-        statusEl.textContent = "Analizando...";
+        showPopoverMessage("Analizando...");
 
         fetch(`/paciente/${consultationId}/analizar-sintomas/`, {
             method: "POST",
@@ -449,19 +499,23 @@
             })
             .then(function (result) {
                 if (!result.ok) {
-                    statusEl.textContent =
-                        result.data.error || "No se pudo analizar los síntomas. Puedes agregarlos manualmente con \"+ Agregar síntoma\".";
+                    showPopoverMessage(
+                        "No fue posible sugerir síntomas de forma automática. Puedes agregarlos manualmente si lo deseas."
+                    );
                     return;
                 }
                 const symptoms = result.data.symptoms || [];
+                if (!symptoms.length) {
+                    showPopoverMessage("No se detectaron síntomas en el texto. Puedes agregarlos manualmente.");
+                    return;
+                }
+                popoverStatus.classList.add("hidden");
                 renderTags(symptoms);
-                statusEl.textContent = symptoms.length ? "" : "No se detectaron síntomas en el texto.";
             })
             .catch(function () {
-                statusEl.textContent = "No se pudo contactar al servicio de IA. Puedes agregar síntomas manualmente con \"+ Agregar síntoma\".";
-            })
-            .finally(function () {
-                analyzeBtn.disabled = false;
+                showPopoverMessage(
+                    "No fue posible sugerir síntomas de forma automática. Puedes agregarlos manualmente si lo deseas."
+                );
             });
     });
 })();

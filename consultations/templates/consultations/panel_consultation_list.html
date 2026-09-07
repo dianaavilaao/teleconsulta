@@ -18,7 +18,27 @@
                 </p>
                 <p class="list-item-meta">{{ c.scheduled_at }}</p>
             </div>
-            <span class="badge">{{ c.get_status_display }}</span>
+            <div style="text-align: right;">
+                <span class="badge">{{ c.get_status_display }}</span>
+                {% if c.status == 'completed' %}
+                <br>
+                <span class="badge" style="margin-top: 0.3rem; {% if c.diagnosis %}background: var(--accent-soft); color: var(--accent);{% else %}background: var(--warning-soft); color: var(--warning);{% endif %}">
+                    {% if c.diagnosis %}Diagnóstico registrado{% else %}Sin diagnóstico{% endif %}
+                </span>
+                {% if c.diagnosis and c.diagnosis.connection_issues != 'none' %}
+                <br>
+                <span class="badge" style="margin-top: 0.3rem; background: var(--blocker-soft); color: var(--blocker);">
+                    {% if c.diagnosis.connection_issues == 'both' %}
+                    Problemas de conexión: Por ambas partes
+                    {% elif c.diagnosis.connection_issues == 'patient' %}
+                    Problemas de conexión: Por parte del paciente
+                    {% elif c.diagnosis.connection_issues == 'professional' %}
+                    Problemas de conexión: Por parte del profesional
+                    {% endif %}
+                </span>
+                {% endif %}
+                {% endif %}
+            </div>
         </div>
     </div>
     {% endfor %}

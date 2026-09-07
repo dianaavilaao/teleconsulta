@@ -34,6 +34,10 @@ class DiagnosisService:
         diagnosis.recommendations = (data.get("recommendations") or "").strip()
         diagnosis.follow_up_needed = bool(data.get("follow_up_needed"))
         diagnosis.follow_up_notes = (data.get("follow_up_notes") or "").strip()
+        connection_issues = data.get("connection_issues")
+        if connection_issues not in dict(Diagnosis.ConnectionIssues.choices):
+            connection_issues = Diagnosis.ConnectionIssues.NONE
+        diagnosis.connection_issues = connection_issues
         diagnosis.created_by = professional
         diagnosis.save()
         return diagnosis

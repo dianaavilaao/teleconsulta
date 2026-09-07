@@ -38,7 +38,6 @@ python manage.py runserver      # alcanza para probar todo (WS incluido)
 |----------------|--------------|--------------------------------------------------|
 | `admin`        | Admin        | Entra a `/panel/` y gestiona consultas/usuarios  |
 | `paciente1`    | Paciente     | Sala de espera de la consulta #1                 |
-| `paciente2`    | Paciente     | Sala de espera de la consulta #2                 |
 | `profesional1` | Profesional  | Ve ambas consultas (#1 y #2) asignadas           |
 
 ## Cómo probar el flujo completo
@@ -53,9 +52,9 @@ python manage.py runserver      # alcanza para probar todo (WS incluido)
    en `http://localhost:8000/login/`. Se lo redirige a su sala de espera.
 3. Completar el formulario de intake (motivo, fecha de nacimiento,
    consentimiento, medicamentos, alergias) y guardar. La pantalla muestra
-   **blockers** (impiden iniciar, ej. falta consentimiento) y **warnings**
-   (no bloquean, ej. falta la fecha de nacimiento) en tiempo real, sin
-   recargar.
+   **blockers** (impiden iniciar, ej. falta consentimiento o falta la
+   fecha de nacimiento) y **warnings** (no bloquean, ej. faltan
+   medicamentos) en tiempo real, sin recargar.
 4. En una tercera pestaña, entrar como **profesional1**. Ve la información
    del paciente, sus blockers/warnings, y si el paciente ya está en la sala
    el estado sube a "Ambos presentes" automáticamente (visible al instante en

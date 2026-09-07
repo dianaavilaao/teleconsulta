@@ -49,7 +49,7 @@ class ReadinessService:
             blockers.append("El motivo de consulta es obligatorio y debe ser descriptivo.")
 
         if not intake.birth_date:
-            warnings.append("No se informó la fecha de nacimiento del paciente.")
+            blockers.append("La fecha de nacimiento es obligatoria.")
 
         if not intake.current_medications.strip():
             warnings.append("No se informaron medicamentos actuales (o no aplica).")
