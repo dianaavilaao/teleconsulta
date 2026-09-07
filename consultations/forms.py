@@ -2,6 +2,7 @@ from django import forms
 
 from accounts.models import UserProfile
 from .models import Consultation, IntakeForm
+from .services.eligibility import UnderageError, validate_patient_age
 
 
 class ConsultationCreateForm(forms.ModelForm):
@@ -59,3 +60,19 @@ class IntakeSubmitForm(forms.ModelForm):
         labels = {
             "consent_given": "Doy mi consentimiento informado para la teleconsulta",
         }
+
+    def clean_birth_date(self):
+        birth_date = self.cleaned_data.get("birth_date")
+        # Vacío no es error acá: ReadinessService ya lo trata como warning
+        # (no bloqueante), y esa regla no se toca ni se duplica.
+        if not birth_date:
+            return birth_date
+
+        try:
+            validate_patient_age(birth_date)
+        except UnderageError:
+            raise forms.ValidationError(
+                "Debés ingresar una fecha de nacimiento correspondiente a una persona mayor de 18 años."
+            )
+
+        return birth_date
