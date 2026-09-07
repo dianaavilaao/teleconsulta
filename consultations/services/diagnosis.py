@@ -8,8 +8,11 @@ servicio y captura la excepción de dominio si corresponde.
 
 Privacidad: este servicio solo guarda datos. No dispara ningún broadcast
 por WebSocket — a propósito, porque `RealtimeNotifier` transmite a un
-grupo compartido entre paciente y profesional, y el diagnóstico es un
-registro interno que el paciente nunca debe recibir.
+grupo compartido entre paciente y profesional, y `follow_up_notes`/
+`connection_issues` no son para el paciente (ver Diagnosis en models.py).
+El paciente sí puede leer el resto del diagnóstico, pero por una vista de
+solo lectura que arma explícitamente qué campos mostrar, nunca por push
+en tiempo real.
 """
 
 from __future__ import annotations

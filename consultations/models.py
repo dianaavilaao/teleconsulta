@@ -111,14 +111,16 @@ class IntakeForm(models.Model):
 
 class Diagnosis(models.Model):
     """
-    Registro clínico interno que el profesional puede cargar una vez que
-    la consulta terminó (opcional: no todas las consultas requieren uno).
+    Registro clínico que el profesional puede cargar una vez que la
+    consulta terminó (opcional: no todas las consultas requieren uno).
 
-    Importante — privacidad: esto NUNCA debe llegar al paciente. A
-    diferencia de IntakeForm (que el paciente escribe y el profesional
-    lee), Diagnosis es en un solo sentido: lo escribe el profesional y
-    solo lo lee él mismo (y el admin, en modo lectura). No se serializa en
-    RealtimeNotifier ni se expone en ninguna vista con @patient_required.
+    Privacidad por campo, no por modelo entero: el paciente SÍ puede leer
+    `diagnosis_text`, `recommendations` y `follow_up_needed` (de solo
+    lectura, en su historial — ver patient_history_detail), pero
+    `follow_up_notes` y `connection_issues` siguen siendo internos del
+    profesional/admin. Por eso las vistas con @patient_required nunca pasan
+    el objeto Diagnosis entero al template, arman un dict explícito con
+    solo esos tres campos. Tampoco se serializa nunca en RealtimeNotifier.
     """
 
     class ConnectionIssues(models.TextChoices):

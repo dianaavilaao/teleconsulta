@@ -2,6 +2,7 @@
 Django settings for config project (Teleconsulta).
 """
 
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -13,7 +14,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ya estén seteadas en el entorno real (override=False por defecto).
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = "django-insecure-j6u=8qksskl0y)$r6ytno8%h*kmz!zu_tyt0o#!$j^eoxk7p)&"
+# El fallback solo existe para que el proyecto ande "out of the box" en
+# desarrollo sin depender de un .env; nunca usar este valor si el proyecto
+# se llega a desplegar de verdad — ahí SECRET_KEY tiene que venir del .env
+# (o del entorno real) con una clave generada aparte, nunca la del fallback
+# ni la vieja que estaba hardcodeada acá (quedó expuesta en el historial de
+# git, así que se considera comprometida).
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY", "django-insecure-dev-only-fallback-do-not-use-in-production"
+)
 
 DEBUG = True
 
@@ -77,8 +86,6 @@ CHANNEL_LAYERS = {
 # SQLite por defecto para que el proyecto corra sin dependencias externas.
 # Se puede apuntar a Postgres seteando la variable de entorno DATABASE_URL
 # (ver README) sin tocar código.
-import os
-
 if os.environ.get("DATABASE_URL"):
     import dj_database_url
 

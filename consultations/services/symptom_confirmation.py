@@ -10,7 +10,7 @@ dos lugares distintos).
 
 from __future__ import annotations
 
-MAX_SYMPTOMS = 5
+MAX_SYMPTOMS = 10
 
 
 def validate_symptoms(symptoms) -> tuple[list[str], str | None]:

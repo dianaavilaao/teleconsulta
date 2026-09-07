@@ -73,16 +73,29 @@ def patient_list(request):
 def patient_history_detail(request, consultation_id):
     """
     Detalle de solo lectura de una consulta pasada, para el historial del
-    paciente. A propósito NO incluye nada de Diagnosis en el contexto: eso
-    es un registro interno del profesional (ver Diagnosis en models.py) y
-    el paciente nunca debe poder verlo, en ninguna vista.
+    paciente. Del Diagnosis, el paciente solo ve diagnóstico, recomendaciones
+    y si requiere seguimiento — nunca `follow_up_notes` ni
+    `connection_issues`, que siguen siendo internos del profesional/admin
+    (ver Diagnosis en models.py). Por eso se arma un dict explícito en vez
+    de pasar el objeto Diagnosis entero al template: así una edición futura
+    del template no puede exponer un campo de más por accidente.
     """
     consultation = get_object_or_404(Consultation, pk=consultation_id, patient=request.user)
     intake = IntakeForm.objects.filter(consultation=consultation).first()
+
+    diagnosis = Diagnosis.objects.filter(consultation=consultation).first()
+    diagnosis_for_patient = None
+    if diagnosis:
+        diagnosis_for_patient = {
+            "diagnosis_text": diagnosis.diagnosis_text,
+            "recommendations": diagnosis.recommendations,
+            "follow_up_needed": diagnosis.follow_up_needed,
+        }
+
     return render(
         request,
         "consultations/patient_history_detail.html",
-        {"consultation": consultation, "intake": intake},
+        {"consultation": consultation, "intake": intake, "diagnosis": diagnosis_for_patient},
     )
 
 
@@ -316,9 +329,10 @@ def generate_briefing(request, consultation_id):
 @require_POST
 def save_diagnosis(request, consultation_id):
     """
-    Guarda (crea o actualiza) el diagnóstico interno del profesional.
-    Registro solo para el profesional/admin: nunca se transmite al
-    paciente (ver Diagnosis en models.py y DiagnosisService).
+    Guarda (crea o actualiza) el diagnóstico del profesional. Solo lo
+    escribe el profesional; el paciente después puede leer una parte (ver
+    patient_history_detail y Diagnosis en models.py), pero nunca por esta
+    vía en tiempo real.
     """
     consultation = get_object_or_404(
         Consultation, pk=consultation_id, professional=request.user

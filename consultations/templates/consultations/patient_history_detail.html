@@ -37,6 +37,17 @@
     {% endif %}
 </div>
 
+{% if diagnosis %}
+<div class="panel">
+    <h2 style="margin-bottom: 0.75rem;">Diagnóstico</h2>
+    <dl class="intake-data">
+        <div><dt>Diagnóstico:</dt> <dd>{{ diagnosis.diagnosis_text|default:"—" }}</dd></div>
+        <div><dt>Recomendaciones:</dt> <dd>{{ diagnosis.recommendations|default:"—" }}</dd></div>
+        <div><dt>Requiere seguimiento:</dt> <dd>{% if diagnosis.follow_up_needed %}Sí{% else %}No{% endif %}</dd></div>
+    </dl>
+</div>
+{% endif %}
+
 <a href="{% url 'consultations:patient_list' %}" class="btn btn-secondary" style="margin-top: 0.5rem; display: inline-block;">
     Volver a mis teleconsultas
 </a>
