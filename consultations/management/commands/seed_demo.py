@@ -23,29 +23,26 @@ class Command(BaseCommand):
         professional = self._get_or_create_user(
             "profesional1", UserProfile.Role.PROFESSIONAL, "Profesional Uno"
         )
-        # Segundo par para probar varios casos en simultáneo.
-        patient2 = self._get_or_create_user("paciente2", UserProfile.Role.PATIENT, "Paciente Dos")
 
-        c1, created1 = Consultation.objects.get_or_create(
-            patient=patient,
-            professional=professional,
-            defaults={"created_by": admin, "scheduled_at": timezone.now()},
-        )
+        # No se usa get_or_create: un paciente puede legítimamente tener
+        # varias consultas con el mismo profesional (uso real de la app),
+        # así que (patient, professional) no es una clave única — solo
+        # interesa que exista AL MENOS una para poder probar el flujo.
+        c1 = Consultation.objects.filter(patient=patient, professional=professional).first()
+        if c1 is None:
+            c1 = Consultation.objects.create(
+                patient=patient,
+                professional=professional,
+                created_by=admin,
+                scheduled_at=timezone.now(),
+            )
         IntakeForm.objects.get_or_create(consultation=c1)
-
-        c2, created2 = Consultation.objects.get_or_create(
-            patient=patient2,
-            professional=professional,
-            defaults={"created_by": admin, "scheduled_at": timezone.now()},
-        )
-        IntakeForm.objects.get_or_create(consultation=c2)
 
         self.stdout.write(self.style.SUCCESS("Datos de demo listos."))
         self.stdout.write("Usuarios (contraseña 'demo1234' para todos):")
-        self.stdout.write("  admin        -> Django Admin (crear teleconsultas)")
+        self.stdout.write("  admin        -> /panel/ (crear y gestionar teleconsultas)")
         self.stdout.write(f"  paciente1    -> sala de espera consulta #{c1.id}")
-        self.stdout.write(f"  paciente2    -> sala de espera consulta #{c2.id}")
-        self.stdout.write("  profesional1 -> ve ambas consultas asignadas")
+        self.stdout.write("  profesional1 -> ve la consulta asignada")
 
     def _get_or_create_user(self, username, role, full_name):
         user, created = User.objects.get_or_create(
