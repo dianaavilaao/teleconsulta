@@ -83,7 +83,8 @@ pero cada ves me duele mas.
 ```
 
 El segundo tiene errores ortográficos a propósito, para comprobar que la IA
-igual identifica los síntomas. 
+igual identifica los síntomas. También sugiero ingresar distintos tipos de
+casos y no solo quedarse con estos, pero los dejo aquí para el demo. 
 
 ## Cómo probar el flujo completo
 
@@ -183,4 +184,4 @@ fue validado a mano: migraciones aplicadas, flujo completo probado
 end-to-end con requests HTTP y WebSockets reales. Las decisiones de negocio
 (blocker vs. warning, qué rol dispara cada transición, qué es privado del
 profesional vs. visible para el admin) se definieron y ajustaron
-manualmente, no se aceptaron tal cual las propuso la IA.
+manualmente.
