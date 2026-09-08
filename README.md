@@ -104,12 +104,12 @@ igual identifica los síntomas.
 
 ## Bonuses implementados
 
-| Bonus | Estado |
-|---|---|
-| Agente de intake (IA sugiere síntomas) | ✅ ver "Funcionalidades de IA" |
-| Briefing para el profesional (IA) | ✅ ver "Funcionalidades de IA" |
-| Videollamada | ✅ Jitsi Meet embebido, sala privada por consulta, se abre/cierra sola sincronizada por WebSocket |
-| Arquitectura/deploy en la nube | ✅ documentado aparte (no incluido en este repo) |
+| Bonus                                  | Estado                                            |
+|----------------------------------------|---------------------------------------------------|
+| Agente de intake (IA sugiere síntomas) | ✅ ver "Funcionalidades de IA"                     |
+| Briefing para el profesional (IA)      | ✅ ver "Funcionalidades de IA"                     |
+| Videollamada                           | ✅ Jitsi Meet embebido, sincronizado por WebSocket |
+| Arquitectura/deploy en la nube         | ✅ documentado aparte (no incluido en este repo)   |
 
 ## Funcionalidades de IA (Groq)
 
