@@ -46,6 +46,48 @@
 
         a { color: var(--accent); }
 
+        /* --- Animaciones ---
+           Sutiles a propósito (tono clínico, no una landing): dan feedback
+           de que algo cambió (útil sobre todo en las pantallas con
+           WebSocket, donde el contenido se actualiza solo) sin distraer.
+           Quien prefiere menos movimiento lo desactiva casi del todo. */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.96); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes pulseOnce {
+            0% { transform: scale(1); }
+            35% { transform: scale(1.12); }
+            100% { transform: scale(1); }
+        }
+        main { animation: fadeInUp 0.35s ease both; }
+        .flash { animation: fadeInUp 0.25s ease both; }
+        .banner:not(.hidden) { animation: fadeIn 0.3s ease; }
+        .popover-box { animation: popIn 0.2s ease; }
+        #video-panel:not(.hidden) { animation: fadeIn 0.35s ease; }
+        .pulse-once { animation: pulseOnce 0.4s ease; }
+        @keyframes listItemEnter {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .list-item-enter { animation: listItemEnter 0.35s ease; }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.001ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.001ms !important;
+            }
+        }
+
         .nav {
             display: flex;
             justify-content: space-between;
@@ -157,7 +199,9 @@
             border-radius: 3px;
             border: 1px solid transparent;
             cursor: pointer;
+            transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
         }
+        .btn:active:not(:disabled) { transform: scale(0.97); }
 
         .btn-primary { background: var(--accent); color: #fff; }
         .btn-primary:hover:not(:disabled) { background: #275b4d; }
@@ -212,6 +256,7 @@
             background: var(--bg);
             border: 2px solid var(--border);
             z-index: 1;
+            transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
         }
         .step-label {
             font-size: 0.72rem;
@@ -260,8 +305,9 @@
             text-decoration: none;
             color: inherit;
             margin-bottom: 0.75rem;
+            transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
         }
-        .list-item:hover { border-color: var(--accent); }
+        .list-item:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(30, 42, 36, 0.06); }
         .list-item-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
         .list-item-name { font-weight: 500; }
         .list-item-meta { font-size: 0.82rem; color: var(--ink-soft); margin-top: 0.15rem; }
@@ -273,6 +319,7 @@
             background: var(--accent-soft);
             color: var(--accent);
             white-space: nowrap;
+            transition: background-color 0.2s ease, color 0.2s ease;
         }
         .badge-warning { background: var(--warning-soft); color: var(--warning); }
         .badge-blocker { background: var(--blocker-soft); color: var(--blocker); }
@@ -466,6 +513,20 @@
                         socket.close();
                     },
                 };
+            }
+
+            // Pequeño feedback visual para cuando un WebSocket actualiza algo
+            // que ya estaba en pantalla (un badge que cambia de texto, por
+            // ejemplo): sin esto, un cambio de estado remoto es indistinguible
+            // de que la página nunca se actualizó. Se puede volver a llamar
+            // sobre el mismo elemento las veces que haga falta (saca la clase
+            // y fuerza un reflow antes de volver a ponerla, si no el navegador
+            // no vuelve a disparar la animación).
+            function pulseOnce(el) {
+                if (!el) return;
+                el.classList.remove("pulse-once");
+                void el.offsetWidth;
+                el.classList.add("pulse-once");
             }
         </script>
         {% block content %}{% endblock %}

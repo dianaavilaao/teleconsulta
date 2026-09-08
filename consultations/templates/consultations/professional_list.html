@@ -57,7 +57,7 @@
     openLiveSocket("/ws/my-consultations/", function (data) {
         const link = document.createElement("a");
         link.href = `/profesional/${data.id}/`;
-        link.className = "list-item";
+        link.className = "list-item list-item-enter";
 
         const row = document.createElement("div");
         row.className = "list-item-row";

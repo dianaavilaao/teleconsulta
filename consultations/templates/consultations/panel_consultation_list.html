@@ -56,7 +56,10 @@
     // que cambió, y actualizamos solo esa fila.
     openLiveSocket("/ws/admin/consultations/", function (data) {
         const statusBadge = document.getElementById(`status-badge-${data.id}`);
-        if (statusBadge) statusBadge.textContent = data.status_display;
+        if (statusBadge && statusBadge.textContent !== data.status_display) {
+            statusBadge.textContent = data.status_display;
+            pulseOnce(statusBadge);
+        }
 
         const infoWrap = document.getElementById(`diagnosis-info-${data.id}`);
         if (!infoWrap) return; // la fila no está en esta pantalla (ej. consulta creada después de cargarla)
@@ -64,14 +67,21 @@
         infoWrap.style.display = data.status === "completed" ? "" : "none";
 
         const diagBadge = document.getElementById(`diagnosis-badge-${data.id}`);
-        diagBadge.textContent = data.diagnosis_registered ? "Diagnóstico registrado" : "Sin diagnóstico";
-        diagBadge.classList.toggle("badge-warning", !data.diagnosis_registered);
+        const diagText = data.diagnosis_registered ? "Diagnóstico registrado" : "Sin diagnóstico";
+        if (diagBadge.textContent !== diagText) {
+            diagBadge.textContent = diagText;
+            diagBadge.classList.toggle("badge-warning", !data.diagnosis_registered);
+            pulseOnce(diagBadge);
+        }
 
         const connWrap = document.getElementById(`connection-wrap-${data.id}`);
         const connBadge = document.getElementById(`connection-badge-${data.id}`);
         if (data.diagnosis_registered && data.connection_issues && data.connection_issues !== "none") {
+            const connText = CONNECTION_LABELS[data.connection_issues] || "";
+            const changed = connWrap.style.display === "none" || connBadge.textContent !== connText;
             connWrap.style.display = "";
-            connBadge.textContent = CONNECTION_LABELS[data.connection_issues] || "";
+            connBadge.textContent = connText;
+            if (changed) pulseOnce(connBadge);
         } else {
             connWrap.style.display = "none";
         }
