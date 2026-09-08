@@ -7,4 +7,12 @@ websocket_urlpatterns = [
         r"^ws/consultations/(?P<consultation_id>\d+)/$",
         consumers.ConsultationConsumer.as_asgi(),
     ),
+    re_path(
+        r"^ws/admin/consultations/$",
+        consumers.AdminConsultationsConsumer.as_asgi(),
+    ),
+    re_path(
+        r"^ws/my-consultations/$",
+        consumers.UserConsultationsConsumer.as_asgi(),
+    ),
 ]

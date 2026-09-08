@@ -82,22 +82,21 @@
 
 <div class="panel">
     <h2 style="margin-bottom: 0.75rem;">Información pre-consulta</h2>
-    {% if intake %}
-    <dl class="intake-data" id="intake-data">
-        <div><dt>Motivo:</dt> <dd>{{ intake.reason|default:"—" }}</dd></div>
-        <div><dt>Edad:</dt> <dd>{{ intake.age|default:"—" }}</dd></div>
-        <div><dt>Medicamentos actuales:</dt> <dd>{{ intake.current_medications|default:"—" }}</dd></div>
-        <div><dt>Alergias:</dt> <dd>{{ intake.allergies|default:"—" }}</dd></div>
-        <div><dt>Consentimiento:</dt> <dd>{% if intake.consent_given %}Sí{% else %}No{% endif %}</dd></div>
+    <p class="empty-state" id="intake-empty-state" {% if intake %}style="display: none;"{% endif %}>
+        El paciente aún no completó ningún dato.
+    </p>
+    <dl class="intake-data" id="intake-data" {% if not intake %}style="display: none;"{% endif %}>
+        <div><dt>Motivo:</dt> <dd id="intake-reason">{{ intake.reason|default:"—" }}</dd></div>
+        <div><dt>Edad:</dt> <dd id="intake-age">{{ intake.age|default:"—" }}</dd></div>
+        <div><dt>Medicamentos actuales:</dt> <dd id="intake-medications">{{ intake.current_medications|default:"—" }}</dd></div>
+        <div><dt>Alergias:</dt> <dd id="intake-allergies">{{ intake.allergies|default:"—" }}</dd></div>
+        <div><dt>Consentimiento:</dt> <dd id="intake-consent">{% if intake.consent_given %}Sí{% else %}No{% endif %}</dd></div>
     </dl>
 
     <ul id="alert-list" class="alert-list" style="margin-top: 1rem;">
         {% for b in readiness.blockers %}<li class="alert-item blocker">{{ b }}</li>{% endfor %}
         {% for w in readiness.warnings %}<li class="alert-item warning">{{ w }}</li>{% endfor %}
     </ul>
-    {% else %}
-    <p class="empty-state">El paciente aún no completó ningún dato.</p>
-    {% endif %}
 
     <div style="margin-top: 1rem;">
         <h2 style="font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 0.4rem;">Síntomas confirmados</h2>
@@ -113,9 +112,10 @@
 
 <div class="panel">
     <h2 style="margin-bottom: 0.75rem;">Briefing con IA</h2>
-    {% if not intake or not intake.symptoms %}
-    <p class="empty-state">El paciente todavía no confirmó síntomas — todavía no se puede generar un briefing.</p>
-    {% else %}
+    <p class="empty-state" id="briefing-empty-state" {% if intake and intake.symptoms %}style="display: none;"{% endif %}>
+        El paciente todavía no confirmó síntomas — todavía no se puede generar un briefing.
+    </p>
+    <div id="briefing-controls" {% if not intake or not intake.symptoms %}style="display: none;"{% endif %}>
     <button type="button" id="briefing-btn" class="btn btn-primary">
         {% if consultation.ai_briefing %}Regenerar briefing{% else %}Generar briefing{% endif %}
     </button>
@@ -146,7 +146,7 @@
             </div>
         </div>
     </details>
-    {% endif %}
+    </div>
 </div>
 
 {% if consultation.ai_briefing %}{{ consultation.ai_briefing|json_script:"initial-briefing" }}{% endif %}
@@ -176,30 +176,47 @@
 <script src="https://meet.jit.si/external_api.js"></script>
 <script>
 (function () {
-    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${scheme}://${window.location.host}/ws/consultations/{{ consultation.id }}/`);
-
     const roomName = "teleconsulta-{{ consultation.id }}-{{ consultation.created_at|date:'YmdHis' }}";
     let jitsiApi = null;
+    let videoCallFailed = false;
 
+    // Si Jitsi falla al cargar (red, bloqueo del navegador, meet.jit.si
+    // caído, etc.), esto no debe tirar abajo el resto del handler de
+    // mensajes: sin el try/catch, una excepción acá cortaba en seco todo
+    // lo que viene después en cada mensaje mientras dure la consulta
+    // (intake, síntomas, briefing, readiness), porque se llama en cada
+    // broadcast, no solo en la transición a "in_progress".
     function startVideoCall() {
-        if (jitsiApi) return;
-        document.getElementById("video-panel").classList.remove("hidden");
-        jitsiApi = new JitsiMeetExternalAPI("meet.jit.si", {
-            roomName: roomName,
-            parentNode: document.querySelector("#meet-container"),
-            width: "100%",
-            height: "100%",
-            lang: "es",
-            userInfo: {
-                displayName: "{{ request.user.get_full_name|default:request.user.username|escapejs }}",
-            },
-        });
+        if (jitsiApi || videoCallFailed) return;
+        try {
+            document.getElementById("video-panel").classList.remove("hidden");
+            jitsiApi = new JitsiMeetExternalAPI("meet.jit.si", {
+                roomName: roomName,
+                parentNode: document.querySelector("#meet-container"),
+                width: "100%",
+                height: "100%",
+                lang: "es",
+                userInfo: {
+                    displayName: "{{ request.user.get_full_name|default:request.user.username|escapejs }}",
+                },
+            });
+        } catch (err) {
+            videoCallFailed = true;
+            console.error("No se pudo iniciar la videollamada:", err);
+            const container = document.querySelector("#meet-container");
+            if (container) {
+                container.textContent = "No se pudo cargar la videollamada. Probá recargar la página.";
+            }
+        }
     }
 
     function endVideoCall() {
         if (!jitsiApi) return;
-        jitsiApi.dispose();
+        try {
+            jitsiApi.dispose();
+        } catch (err) {
+            console.error("Error al cerrar la videollamada:", err);
+        }
         jitsiApi = null;
         document.getElementById("video-panel").classList.add("hidden");
     }
@@ -211,6 +228,27 @@
             const el = document.querySelector(`#status-stepper .step[data-code="${step.code}"]`);
             if (el) el.setAttribute("data-state", step.state);
         });
+    }
+
+    // Valores del intake (motivo, edad, medicamentos, alergias,
+    // consentimiento): si el paciente los guarda mientras esta pantalla ya
+    // está abierta, antes solo se veían al recargar — ahora llegan en cada
+    // broadcast de estado (ver RealtimeNotifier._serialize) y se pintan acá.
+    function renderIntake(intake) {
+        const emptyState = document.getElementById("intake-empty-state");
+        const dataEl = document.getElementById("intake-data");
+        if (!intake) {
+            emptyState.style.display = "";
+            dataEl.style.display = "none";
+            return;
+        }
+        emptyState.style.display = "none";
+        dataEl.style.display = "";
+        document.getElementById("intake-reason").textContent = intake.reason || "—";
+        document.getElementById("intake-age").textContent = intake.age != null ? intake.age : "—";
+        document.getElementById("intake-medications").textContent = intake.current_medications || "—";
+        document.getElementById("intake-allergies").textContent = intake.allergies || "—";
+        document.getElementById("intake-consent").textContent = intake.consent_given ? "Sí" : "No";
     }
 
     // Solo lectura: sin checkbox, sin click, sin toggle — es solo informativo.
@@ -236,9 +274,21 @@
         });
     }
 
-    socket.onmessage = function (event) {
-        const data = JSON.parse(event.data);
+    // El botón "Generar briefing" antes solo existía en el DOM si el
+    // paciente ya había confirmado síntomas AL CARGAR la página — si los
+    // confirmaba después, con esta pantalla ya abierta, el mensaje de "el
+    // paciente todavía no confirmó síntomas" se quedaba pegado para
+    // siempre porque nada lo actualizaba. Ahora el bloque siempre existe
+    // (oculto o no) y esto lo muestra/oculta según corresponda.
+    function updateBriefingAvailability(symptoms) {
+        const emptyState = document.getElementById("briefing-empty-state");
+        const controls = document.getElementById("briefing-controls");
+        const hasSymptoms = symptoms && symptoms.length > 0;
+        emptyState.style.display = hasSymptoms ? "none" : "";
+        controls.style.display = hasSymptoms ? "" : "none";
+    }
 
+    openLiveSocket(`/ws/consultations/{{ consultation.id }}/`, function (data) {
         document.getElementById("patient-banner").classList.toggle("hidden", data.patient_joined);
 
         if (data.steps) updateStepper(data.steps);
@@ -256,7 +306,11 @@
             endVideoCall();
         }
 
-        if (data.symptoms) renderProfessionalSymptoms(data.symptoms);
+        if ("intake" in data) renderIntake(data.intake);
+        if ("symptoms" in data) {
+            renderProfessionalSymptoms(data.symptoms);
+            updateBriefingAvailability(data.symptoms);
+        }
 
         if (data.readiness) {
             document.getElementById("alert-list").innerHTML =
@@ -264,14 +318,14 @@
                     .concat(data.readiness.warnings.map(w => `<li class="alert-item warning">${w}</li>`))
                     .join("");
         }
-    };
+    });
 })();
 </script>
 
 <script>
 (function () {
     const briefingBtn = document.getElementById("briefing-btn");
-    if (!briefingBtn) return; // el paciente todavía no confirmó síntomas: el panel no se renderizó
+    if (!briefingBtn) return; // el botón siempre existe (ver updateBriefingAvailability); guard defensivo
 
     const consultationId = {{ consultation.id }};
     const csrftoken = document.querySelector("[name=csrfmiddlewaretoken]").value;

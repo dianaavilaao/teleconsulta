@@ -27,7 +27,7 @@
 {% if consultation.status != 'scheduled' and consultation.status != 'waiting_intake' %}
 <div class="panel">
     <h2 style="margin-bottom: 0.75rem;">Tu información</h2>
-    <p class="empty-state" style="margin-bottom: 0.75rem;">
+    <p class="empty-state" id="tu-informacion-status" style="margin-bottom: 0.75rem;">
         {% if consultation.status == 'completed' %}
         La consulta ya finalizó.
         {% elif consultation.status == 'in_progress' %}
@@ -58,6 +58,15 @@
     {% else %}
     <p class="empty-state">No se completó información para esta consulta.</p>
     {% endif %}
+</div>
+
+<div class="panel" id="diagnosis-panel" {% if not diagnosis %}style="display: none;"{% endif %}>
+    <h2 style="margin-bottom: 0.75rem;">Diagnóstico</h2>
+    <dl class="intake-data">
+        <div><dt>Diagnóstico:</dt> <dd id="diagnosis-text">{{ diagnosis.diagnosis_text|default:"—" }}</dd></div>
+        <div><dt>Recomendaciones:</dt> <dd id="diagnosis-recommendations">{{ diagnosis.recommendations|default:"—" }}</dd></div>
+        <div><dt>Requiere seguimiento:</dt> <dd id="diagnosis-follow-up">{% if diagnosis.follow_up_needed %}Sí{% else %}No{% endif %}</dd></div>
+    </dl>
 </div>
 {% else %}
 <div class="panel">
@@ -145,30 +154,47 @@
 <script src="https://meet.jit.si/external_api.js"></script>
 <script>
 (function () {
-    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${scheme}://${window.location.host}/ws/consultations/{{ consultation.id }}/`);
-
     const roomName = "teleconsulta-{{ consultation.id }}-{{ consultation.created_at|date:'YmdHis' }}";
     let jitsiApi = null;
+    let videoCallFailed = false;
 
+    // Si Jitsi falla al cargar (red, bloqueo del navegador, meet.jit.si
+    // caído, etc.), esto no debe tirar abajo el resto del handler de
+    // mensajes: sin el try/catch, una excepción acá cortaba en seco todo
+    // lo que viene después en cada mensaje mientras dure la consulta
+    // (estado, diagnóstico, readiness), porque se llama en cada
+    // broadcast, no solo en la transición a "in_progress".
     function startVideoCall() {
-        if (jitsiApi) return;
-        document.getElementById("video-panel").classList.remove("hidden");
-        jitsiApi = new JitsiMeetExternalAPI("meet.jit.si", {
-            roomName: roomName,
-            parentNode: document.querySelector("#meet-container"),
-            width: "100%",
-            height: "100%",
-            lang: "es",
-            userInfo: {
-                displayName: "{{ request.user.get_full_name|default:request.user.username|escapejs }}",
-            },
-        });
+        if (jitsiApi || videoCallFailed) return;
+        try {
+            document.getElementById("video-panel").classList.remove("hidden");
+            jitsiApi = new JitsiMeetExternalAPI("meet.jit.si", {
+                roomName: roomName,
+                parentNode: document.querySelector("#meet-container"),
+                width: "100%",
+                height: "100%",
+                lang: "es",
+                userInfo: {
+                    displayName: "{{ request.user.get_full_name|default:request.user.username|escapejs }}",
+                },
+            });
+        } catch (err) {
+            videoCallFailed = true;
+            console.error("No se pudo iniciar la videollamada:", err);
+            const container = document.querySelector("#meet-container");
+            if (container) {
+                container.textContent = "No se pudo cargar la videollamada. Probá recargar la página.";
+            }
+        }
     }
 
     function endVideoCall() {
         if (!jitsiApi) return;
-        jitsiApi.dispose();
+        try {
+            jitsiApi.dispose();
+        } catch (err) {
+            console.error("Error al cerrar la videollamada:", err);
+        }
         jitsiApi = null;
         document.getElementById("video-panel").classList.add("hidden");
     }
@@ -182,9 +208,39 @@
         });
     }
 
-    socket.onmessage = function (event) {
-        const data = JSON.parse(event.data);
+    // El panel "Tu información" solo existe en el DOM una vez que ya se
+    // guardó el intake (ver la condición del template más arriba) — para
+    // cuando este mensaje puede traer "in_progress"/"completed" siempre existe, porque
+    // llegar a esos estados requiere haber pasado por acá antes.
+    const STATUS_MESSAGES = {
+        completed: "La consulta ya finalizó.",
+        in_progress: "La consulta está en curso.",
+    };
 
+    function updateStatusMessage(status) {
+        const el = document.getElementById("tu-informacion-status");
+        if (!el) return;
+        el.textContent = STATUS_MESSAGES[status]
+            || "Ya quedó guardada. Vas a poder unirte a la videollamada cuando el profesional inicie la consulta.";
+    }
+
+    // Diagnóstico: solo llega con estos 3 campos (ver
+    // RealtimeNotifier._serialize) — nunca follow_up_notes ni
+    // connection_issues, que no son para el paciente.
+    function renderDiagnosis(diagnosis) {
+        const panel = document.getElementById("diagnosis-panel");
+        if (!panel) return;
+        if (!diagnosis) {
+            panel.style.display = "none";
+            return;
+        }
+        panel.style.display = "";
+        document.getElementById("diagnosis-text").textContent = diagnosis.diagnosis_text || "—";
+        document.getElementById("diagnosis-recommendations").textContent = diagnosis.recommendations || "—";
+        document.getElementById("diagnosis-follow-up").textContent = diagnosis.follow_up_needed ? "Sí" : "No";
+    }
+
+    openLiveSocket(`/ws/consultations/{{ consultation.id }}/`, function (data) {
         document.getElementById("professional-banner").classList.toggle("hidden", !data.professional_joined);
 
         if (data.steps) updateStepper(data.steps);
@@ -195,6 +251,9 @@
             endVideoCall();
         }
 
+        if (data.status) updateStatusMessage(data.status);
+        if ("diagnosis" in data) renderDiagnosis(data.diagnosis);
+
         if (data.readiness) {
             const list = document.getElementById("alert-list");
             const items = data.readiness.blockers.map(b => `<li class="alert-item blocker">${b}</li>`)
@@ -202,7 +261,7 @@
             list.innerHTML = items.join("");
             document.getElementById("readiness-ok").classList.toggle("hidden", items.length > 0);
         }
-    };
+    });
 })();
 </script>
 

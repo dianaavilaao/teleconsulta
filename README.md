@@ -24,8 +24,13 @@ python manage.py seed_demo      # crea usuarios y consultas de demo
 python manage.py runserver      # alcanza para probar todo, WS incluido
 ```
 
-> `runserver` ya sirve ASGI (Channels) automáticamente. Para algo más cercano
-> a producción: `daphne -b 0.0.0.0 -p 8000 config.asgi:application`.
+> `runserver` ya sirve WebSockets (Channels) sin hacer nada más: `"daphne"`
+> está registrado como la primera app en `INSTALLED_APPS`, lo que hace que
+> Django use el servidor ASGI de Daphne en vez del WSGI de siempre para
+> `runserver` — si algún día se saca de ahí, el tiempo real deja de andar
+> aunque la app siga funcionando por HTTP normal. Para correrlo explícitamente
+> con Daphne (por ejemplo, algo más cercano a producción):
+> `daphne -b 0.0.0.0 -p 8000 config.asgi:application`.
 
 `SECRET_KEY` tiene un fallback de desarrollo en `config/settings.py`, así que
 no hace falta setear nada para correrlo local. Antes de cualquier

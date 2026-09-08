@@ -2,8 +2,8 @@
 {% block title %}Mis teleconsultas{% endblock %}
 {% block content %}
 <h1 style="margin-bottom: 1.5rem;">Mis teleconsultas</h1>
-{% if consultations %}
-    {% for c in consultations %}
+<div id="consultation-list">
+{% for c in consultations %}
     <a href="{% if c.status == 'completed' %}{% url 'consultations:patient_history_detail' c.id %}{% else %}{% url 'consultations:waiting_room' c.id %}{% endif %}" class="list-item">
         <div class="list-item-row">
             <div>
@@ -13,8 +13,50 @@
             <span class="badge">{{ c.get_status_display }}</span>
         </div>
     </a>
-    {% endfor %}
-{% else %}
-<p class="empty-state">Todavía no tienes teleconsultas agendadas. Cuando el administrador cree una, aparecerá aquí.</p>
-{% endif %}
+{% endfor %}
+</div>
+<p class="empty-state" id="empty-state" {% if consultations %}style="display: none;"{% endif %}>
+    Todavía no tienes teleconsultas agendadas. Cuando el administrador cree una, aparecerá aquí.
+</p>
+
+<script>
+(function () {
+    const listEl = document.getElementById("consultation-list");
+    const emptyStateEl = document.getElementById("empty-state");
+
+    // El admin creó una consulta nueva mientras esta pantalla estaba
+    // abierta: se arma la misma fila que rendería el template (ver
+    // panel_consultation_create -> RealtimeNotifier.notify_new_consultation)
+    // y se agrega arriba de todo (las consultas se ordenan por más reciente).
+    openLiveSocket("/ws/my-consultations/", function (data) {
+        const link = document.createElement("a");
+        link.href = `/paciente/${data.id}/`;
+        link.className = "list-item";
+
+        const row = document.createElement("div");
+        row.className = "list-item-row";
+
+        const info = document.createElement("div");
+        const name = document.createElement("p");
+        name.className = "list-item-name";
+        name.textContent = "Con " + data.professional_name;
+        const meta = document.createElement("p");
+        meta.className = "list-item-meta";
+        meta.textContent = data.scheduled_at_display;
+        info.appendChild(name);
+        info.appendChild(meta);
+
+        const badge = document.createElement("span");
+        badge.className = "badge";
+        badge.textContent = data.status_display;
+
+        row.appendChild(info);
+        row.appendChild(badge);
+        link.appendChild(row);
+
+        listEl.prepend(link);
+        emptyStateEl.style.display = "none";
+    });
+})();
+</script>
 {% endblock %}

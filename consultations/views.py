@@ -47,6 +47,24 @@ def _state_machine(consultation: Consultation) -> ConsultationStateMachine:
     return ConsultationStateMachine(consultation, notifier=RealtimeNotifier())
 
 
+def _diagnosis_for_patient(consultation: Consultation) -> dict | None:
+    """
+    Mismo allowlist de campos en los dos lugares donde el paciente puede
+    ver su diagnóstico (waiting_room, una vez completada, y
+    patient_history_detail) — nunca `follow_up_notes` ni
+    `connection_issues`, que son internos del profesional/admin. No
+    reimplementar esta regla en cada vista.
+    """
+    diagnosis = Diagnosis.objects.filter(consultation=consultation).first()
+    if diagnosis is None:
+        return None
+    return {
+        "diagnosis_text": diagnosis.diagnosis_text,
+        "recommendations": diagnosis.recommendations,
+        "follow_up_needed": diagnosis.follow_up_needed,
+    }
+
+
 @login_required
 def home(request):
     """Redirige segun el rol: admins van a su panel propio, el resto a su lista."""
@@ -83,19 +101,10 @@ def patient_history_detail(request, consultation_id):
     consultation = get_object_or_404(Consultation, pk=consultation_id, patient=request.user)
     intake = IntakeForm.objects.filter(consultation=consultation).first()
 
-    diagnosis = Diagnosis.objects.filter(consultation=consultation).first()
-    diagnosis_for_patient = None
-    if diagnosis:
-        diagnosis_for_patient = {
-            "diagnosis_text": diagnosis.diagnosis_text,
-            "recommendations": diagnosis.recommendations,
-            "follow_up_needed": diagnosis.follow_up_needed,
-        }
-
     return render(
         request,
         "consultations/patient_history_detail.html",
-        {"consultation": consultation, "intake": intake, "diagnosis": diagnosis_for_patient},
+        {"consultation": consultation, "intake": intake, "diagnosis": _diagnosis_for_patient(consultation)},
     )
 
 
@@ -175,6 +184,7 @@ def waiting_room(request, consultation_id):
             "readiness": readiness,
             "steps": build_status_steps(consultation.status),
             "max_symptoms": MAX_SYMPTOMS,
+            "diagnosis": _diagnosis_for_patient(consultation),
         },
     )
 
@@ -330,9 +340,10 @@ def generate_briefing(request, consultation_id):
 def save_diagnosis(request, consultation_id):
     """
     Guarda (crea o actualiza) el diagnóstico del profesional. Solo lo
-    escribe el profesional; el paciente después puede leer una parte (ver
-    patient_history_detail y Diagnosis en models.py), pero nunca por esta
-    vía en tiempo real.
+    escribe el profesional; el paciente puede leer una parte (ver
+    _diagnosis_for_patient y Diagnosis en models.py) — incluido en tiempo
+    real, si está con la sala abierta, vía el mismo broadcast que el resto
+    del estado de la consulta (RealtimeNotifier ya filtra qué campos van).
     """
     consultation = get_object_or_404(
         Consultation, pk=consultation_id, professional=request.user
@@ -352,6 +363,7 @@ def save_diagnosis(request, consultation_id):
         messages.error(request, str(exc))
         return redirect("consultations:professional_room", consultation_id=consultation.id)
 
+    RealtimeNotifier().broadcast_state(consultation)
     messages.success(request, "Diagnóstico guardado.")
     return redirect("consultations:professional_list")
 
@@ -377,6 +389,7 @@ def panel_consultation_create(request):
             consultation = form.save(commit=False)
             consultation.created_by = request.user
             consultation.save()
+            RealtimeNotifier().notify_new_consultation(consultation)
             messages.success(
                 request,
                 f"Teleconsulta #{consultation.id} creada. Comparte el acceso con "

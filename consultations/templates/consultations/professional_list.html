@@ -20,8 +20,8 @@
     </div>
 </div>
 
-{% if consultations %}
-    {% for c in consultations %}
+<div id="consultation-list">
+{% for c in consultations %}
     <a href="{% url 'consultations:professional_room' c.id %}" class="list-item">
         <div class="list-item-row">
             <div>
@@ -39,10 +39,52 @@
             </div>
         </div>
     </a>
-    {% endfor %}
-{% else %}
-<p class="empty-state">No tienes consultas asignadas todavía.</p>
-{% endif %}
+{% endfor %}
+</div>
+<p class="empty-state" id="empty-state" {% if consultations %}style="display: none;"{% endif %}>
+    No tienes consultas asignadas todavía.
+</p>
+
+<script>
+(function () {
+    const listEl = document.getElementById("consultation-list");
+    const emptyStateEl = document.getElementById("empty-state");
+
+    // Igual criterio que patient_list.html: una consulta nueva del admin
+    // se agrega arriba de todo, sin recargar (ver
+    // RealtimeNotifier.notify_new_consultation). Nunca llega ya
+    // "completed", así que no hace falta el badge de diagnóstico acá.
+    openLiveSocket("/ws/my-consultations/", function (data) {
+        const link = document.createElement("a");
+        link.href = `/profesional/${data.id}/`;
+        link.className = "list-item";
+
+        const row = document.createElement("div");
+        row.className = "list-item-row";
+
+        const info = document.createElement("div");
+        const name = document.createElement("p");
+        name.className = "list-item-name";
+        name.textContent = "Paciente: " + data.patient_name;
+        const meta = document.createElement("p");
+        meta.className = "list-item-meta";
+        meta.textContent = data.scheduled_at_display;
+        info.appendChild(name);
+        info.appendChild(meta);
+
+        const badge = document.createElement("span");
+        badge.className = "badge";
+        badge.textContent = data.status_display;
+
+        row.appendChild(info);
+        row.appendChild(badge);
+        link.appendChild(row);
+
+        listEl.prepend(link);
+        emptyStateEl.style.display = "none";
+    });
+})();
+</script>
 
 <script>
 (function () {

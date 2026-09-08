@@ -6,13 +6,13 @@ lugar la regla de negocio ("¿cuándo se puede escribir un diagnóstico?"),
 para que la vista no valide nada de negocio por su cuenta — solo llama al
 servicio y captura la excepción de dominio si corresponde.
 
-Privacidad: este servicio solo guarda datos. No dispara ningún broadcast
-por WebSocket — a propósito, porque `RealtimeNotifier` transmite a un
-grupo compartido entre paciente y profesional, y `follow_up_notes`/
-`connection_issues` no son para el paciente (ver Diagnosis en models.py).
-El paciente sí puede leer el resto del diagnóstico, pero por una vista de
-solo lectura que arma explícitamente qué campos mostrar, nunca por push
-en tiempo real.
+Privacidad: este servicio solo guarda datos, nunca dispara el broadcast
+(eso lo hace la vista, después de llamarlo — ver save_diagnosis en
+views.py). El broadcast en sí filtra qué campos van: `follow_up_notes` y
+`connection_issues` nunca salen por WebSocket, porque `RealtimeNotifier`
+transmite a un grupo compartido entre paciente y profesional y esos dos
+campos no son para el paciente (ver Diagnosis en models.py y
+RealtimeNotifier._serialize).
 """
 
 from __future__ import annotations

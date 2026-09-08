@@ -32,6 +32,12 @@ ALLOWED_HOSTS = ["*"]
 # Application definition
 
 INSTALLED_APPS = [
+    # Tiene que ir primero (antes que staticfiles): así "daphne" reemplaza
+    # el comando runserver de Django por uno que sirve ASGI de verdad. Sin
+    # esto, `manage.py runserver` corre el servidor WSGI de siempre, que no
+    # entiende WebSockets — la app funciona por HTTP pero el tiempo real
+    # (los cambios de estado que se ven sin recargar) no llega.
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",

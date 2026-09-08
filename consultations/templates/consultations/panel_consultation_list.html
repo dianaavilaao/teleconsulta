@@ -19,25 +19,22 @@
                 <p class="list-item-meta">{{ c.scheduled_at }}</p>
             </div>
             <div style="text-align: right;">
-                <span class="badge">{{ c.get_status_display }}</span>
-                {% if c.status == 'completed' %}
-                <br>
-                <span class="badge{% if not c.diagnosis %} badge-warning{% endif %}" style="margin-top: 0.3rem;">
-                    {% if c.diagnosis %}Diagnóstico registrado{% else %}Sin diagnóstico{% endif %}
-                </span>
-                {% if c.diagnosis and c.diagnosis.connection_issues != 'none' %}
-                <br>
-                <span class="badge badge-blocker" style="margin-top: 0.3rem;">
-                    {% if c.diagnosis.connection_issues == 'both' %}
-                    Problemas de conexión: Por ambas partes
-                    {% elif c.diagnosis.connection_issues == 'patient' %}
-                    Problemas de conexión: Por parte del paciente
-                    {% elif c.diagnosis.connection_issues == 'professional' %}
-                    Problemas de conexión: Por parte del profesional
-                    {% endif %}
-                </span>
-                {% endif %}
-                {% endif %}
+                <span class="badge" id="status-badge-{{ c.id }}">{{ c.get_status_display }}</span>
+                <div id="diagnosis-info-{{ c.id }}" {% if c.status != 'completed' %}style="display: none;"{% endif %}>
+                    <br>
+                    <span class="badge{% if not c.diagnosis %} badge-warning{% endif %}" id="diagnosis-badge-{{ c.id }}" style="margin-top: 0.3rem;">
+                        {% if c.diagnosis %}Diagnóstico registrado{% else %}Sin diagnóstico{% endif %}
+                    </span>
+                    <span id="connection-wrap-{{ c.id }}" {% if not c.diagnosis or c.diagnosis.connection_issues == 'none' %}style="display: none;"{% endif %}>
+                        <br>
+                        <span class="badge badge-blocker" id="connection-badge-{{ c.id }}" style="margin-top: 0.3rem;">
+                            {% if c.diagnosis.connection_issues == 'both' %}Problemas de conexión: Por ambas partes
+                            {% elif c.diagnosis.connection_issues == 'patient' %}Problemas de conexión: Por parte del paciente
+                            {% elif c.diagnosis.connection_issues == 'professional' %}Problemas de conexión: Por parte del profesional
+                            {% endif %}
+                        </span>
+                    </span>
+                </div>
             </div>
         </div>
     </div>
@@ -45,4 +42,40 @@
 {% else %}
 <p class="empty-state">Todavía no hay teleconsultas creadas.</p>
 {% endif %}
+
+<script>
+(function () {
+    const CONNECTION_LABELS = {
+        both: "Problemas de conexión: Por ambas partes",
+        patient: "Problemas de conexión: Por parte del paciente",
+        professional: "Problemas de conexión: Por parte del profesional",
+    };
+
+    // Un solo canal para toda la lista (no uno por consulta, ver
+    // AdminConsultationsConsumer): cada mensaje trae el id de la consulta
+    // que cambió, y actualizamos solo esa fila.
+    openLiveSocket("/ws/admin/consultations/", function (data) {
+        const statusBadge = document.getElementById(`status-badge-${data.id}`);
+        if (statusBadge) statusBadge.textContent = data.status_display;
+
+        const infoWrap = document.getElementById(`diagnosis-info-${data.id}`);
+        if (!infoWrap) return; // la fila no está en esta pantalla (ej. consulta creada después de cargarla)
+
+        infoWrap.style.display = data.status === "completed" ? "" : "none";
+
+        const diagBadge = document.getElementById(`diagnosis-badge-${data.id}`);
+        diagBadge.textContent = data.diagnosis_registered ? "Diagnóstico registrado" : "Sin diagnóstico";
+        diagBadge.classList.toggle("badge-warning", !data.diagnosis_registered);
+
+        const connWrap = document.getElementById(`connection-wrap-${data.id}`);
+        const connBadge = document.getElementById(`connection-badge-${data.id}`);
+        if (data.diagnosis_registered && data.connection_issues && data.connection_issues !== "none") {
+            connWrap.style.display = "";
+            connBadge.textContent = CONNECTION_LABELS[data.connection_issues] || "";
+        } else {
+            connWrap.style.display = "none";
+        }
+    });
+})();
+</script>
 {% endblock %}

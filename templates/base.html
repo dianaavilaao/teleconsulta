@@ -409,6 +409,61 @@
                 </div>
             {% endfor %}
         {% endif %}
+        <script>
+            // Helper compartido por toda pantalla que abre un WebSocket de
+            // tiempo real (sala de consulta, panel de admin, listas de
+            // paciente/profesional). El servidor puede reiniciarse (autoreload
+            // en desarrollo, deploy, timeout de proxy en producción) sin que
+            // el navegador avise: el socket se cierra pero la pestaña sigue
+            // "viva", mostrando la última página cargada — sin reconectar,
+            // se queda sorda para siempre y nada se vuelve a actualizar. Por
+            // eso reintenta sola cada 2 segundos si se corta.
+            //
+            // Eso alcanza cuando el servidor cierra la conexión "prolijo"
+            // (dispara `onclose`), pero un Ctrl+C o el autoreload matando el
+            // proceso a mitad de camino no siempre manda el cierre TCP normal
+            // en Windows: el navegador nunca se entera y `readyState` se queda
+            // en OPEN para siempre — la pestaña queda "zombie", sin reconectar
+            // nunca. Por eso se manda un ping cada 10s: escribir en un socket
+            // cuyo otro extremo ya no existe es lo que efectivamente fuerza al
+            // sistema a mandar el RST y recién ahí el navegador dispara
+            // close/error (sin esto, la detección puede tardar horas —el
+            // timeout de keepalive del SO— o no pasar nunca). El servidor no
+            // hace nada con este mensaje (ver *Consumer.receive, es un no-op a
+            // propósito en channels), es puro chequeo de vida del lado cliente.
+            function openLiveSocket(path, onMessage) {
+                let socket;
+                let closedByPage = false;
+                let pingTimer = null;
+
+                function connect() {
+                    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+                    socket = new WebSocket(`${scheme}://${window.location.host}${path}`);
+                    socket.onmessage = function (event) {
+                        onMessage(JSON.parse(event.data));
+                    };
+                    socket.onclose = function () {
+                        if (closedByPage) return;
+                        setTimeout(connect, 2000);
+                    };
+                }
+
+                connect();
+                pingTimer = setInterval(function () {
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.send("ping");
+                    }
+                }, 10000);
+
+                return {
+                    close: function () {
+                        closedByPage = true;
+                        clearInterval(pingTimer);
+                        socket.close();
+                    },
+                };
+            }
+        </script>
         {% block content %}{% endblock %}
     </main>
 </body>
