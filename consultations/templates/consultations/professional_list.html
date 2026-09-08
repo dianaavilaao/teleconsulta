@@ -32,7 +32,7 @@
                 <span class="badge">{{ c.get_status_display }}</span>
                 {% if c.status == 'completed' %}
                 <br>
-                <span class="badge" style="margin-top: 0.3rem; {% if c.diagnosis %}background: var(--accent-soft); color: var(--accent);{% else %}background: var(--warning-soft); color: var(--warning);{% endif %}">
+                <span class="badge{% if not c.diagnosis %} badge-warning{% endif %}" style="margin-top: 0.3rem;">
                     {% if c.diagnosis %}Diagnóstico registrado{% else %}Sin diagnóstico{% endif %}
                 </span>
                 {% endif %}
