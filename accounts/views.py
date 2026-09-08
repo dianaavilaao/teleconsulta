@@ -1,11 +1,16 @@
+import json
+
 from django.contrib import messages
 from django.contrib.auth import login
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from .decorators import staff_required
 from .forms import AdminUserCreateForm, AdminUserEditForm, SignupForm
+from .models import AccessibilityPreferences
 from .services.user_management import create_user_with_role, role_of, update_user_role
 
 
@@ -24,6 +29,35 @@ def signup(request):
         form = SignupForm()
 
     return render(request, "registration/signup.html", {"form": form})
+
+
+@login_required
+@require_POST
+def save_accessibility_prefs(request):
+    """
+    Guarda las preferencias de accesibilidad de la cuenta logueada —
+    mismo patrón "fetch sin recargar" que toggle_availability, pero con
+    payload en vez de un simple toggle. font_scale se valida contra los
+    3 valores permitidos del modelo; cualquier otra cosa cae a "normal"
+    en vez de guardarse tal cual.
+    """
+    try:
+        payload = json.loads(request.body)
+    except (json.JSONDecodeError, TypeError):
+        payload = {}
+
+    valid_scales = dict(AccessibilityPreferences._meta.get_field("font_scale").choices)
+    font_scale = payload.get("font_scale")
+    if font_scale not in valid_scales:
+        font_scale = "normal"
+
+    prefs, _ = AccessibilityPreferences.objects.get_or_create(user=request.user)
+    prefs.font_scale = font_scale
+    prefs.high_contrast = bool(payload.get("high_contrast"))
+    prefs.reduce_motion = bool(payload.get("reduce_motion"))
+    prefs.save()
+
+    return JsonResponse({"ok": True})
 
 
 # ---- Panel de administración (reemplaza a Django Admin, ver Tarea 2/3) -----
