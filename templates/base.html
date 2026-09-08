@@ -392,6 +392,10 @@
             {% if user.is_staff %}
             <a href="{% url 'consultations:panel_consultation_list' %}">Consultas</a>
             <a href="{% url 'accounts:panel_user_list' %}">Usuarios</a>
+            {% elif user.profile.is_patient %}
+            <a href="{% url 'consultations:patient_list' %}">Mis consultas</a>
+            {% elif user.profile.is_professional %}
+            <a href="{% url 'consultations:professional_list' %}">Mis consultas</a>
             {% endif %}
             <form method="post" action="{% url 'logout' %}" style="margin:0; display:inline;">
                 {% csrf_token %}
